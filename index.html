@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shabnam & Arsham - Exchange of Vows</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=Montserrat:wght@300;400&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-content">
+            <h1 class="couple-names">Shabnam & Arsham</h1>
+            <div class="wedding-date">25 June 2026</div>
+            <div class="wedding-location">Clare College, Cambridge</div>
+            <a href="#rsvp" class="cta-button">RSVP Now</a>
+        </div>
+        <div class="scroll-indicator">↓</div>
+    </section>
+
+    <!-- Our Story Section -->
+    <section class="story">
+        <div class="container">
+            <h2 class="section-title">Our Story</h2>
+            <div class="story-content">
+                <p>Shabnam and Arsham were officially married in an intimate courthouse ceremony, and now they're ready to celebrate with an exchange of vows surrounded by their loved ones at the beautiful Clare College, Cambridge.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Wedding Details Section -->
+    <section class="details">
+        <div class="container">
+            <h2 class="section-title">Celebration Details</h2>
+            <div class="details-grid">
+                <div class="detail-card">
+                    <div class="detail-icon">💒</div>
+                    <h3>Exchange of Vows</h3>
+                    <p class="detail-time">Time TBA</p>
+                    <p>Clare College, Cambridge</p>
+                </div>
+                <div class="detail-card">
+                    <div class="detail-icon">🍾</div>
+                    <h3>Celebration</h3>
+                    <p class="detail-time">Time TBA</p>
+                    <p>Details Coming Soon</p>
+                </div>
+                <div class="detail-card">
+                    <div class="detail-icon">🍽️</div>
+                    <h3>Reception</h3>
+                    <p class="detail-time">Time TBA</p>
+                    <p>Details Coming Soon</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- RSVP Section -->
+    <section class="rsvp" id="rsvp">
+        <div class="container">
+            <h2 class="section-title">RSVP</h2>
+            <p class="rsvp-subtitle">Please respond by the date provided in your invitation</p>
+            
+            <form id="rsvpForm" class="rsvp-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="firstName">First Name *</label>
+                        <input type="text" id="firstName" name="firstName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="lastName">Last Name *</label>
+                        <input type="text" id="lastName" name="lastName" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="email">Email Address *</label>
+                    <input type="email" id="email" name="email" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="phone">Phone Number</label>
+                    <input type="tel" id="phone" name="phone">
+                </div>
+
+                <div class="form-group">
+                    <label>Will you be attending? *</label>
+                    <div class="radio-group">
+                        <label class="radio-label">
+                            <input type="radio" name="attending" value="yes" required>
+                            <span>Joyfully accepts</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="attending" value="no">
+                            <span>Regretfully declines</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group" id="guestCountGroup" style="display: none;">
+                    <label for="guestCount">Number of Adults (including yourself) *</label>
+                    <select id="guestCount" name="guestCount">
+                        <option value="1">1 Adult</option>
+                        <option value="2">2 Adults</option>
+                        <option value="3">3 Adults</option>
+                        <option value="4">4 Adults</option>
+                    </select>
+                </div>
+
+                <div class="form-group" id="childrenGroup" style="display: none;">
+                    <label for="childrenCount">Number of Children</label>
+                    <select id="childrenCount" name="childrenCount">
+                        <option value="0">No children</option>
+                        <option value="1">1 Child</option>
+                        <option value="2">2 Children</option>
+                        <option value="3">3 Children</option>
+                        <option value="4">4 Children</option>
+                    </select>
+                </div>
+
+                <div class="form-group" id="guestNamesGroup" style="display: none;">
+                    <label for="guestNames">Names of Additional Guests</label>
+                    <textarea id="guestNames" name="guestNames" rows="2" placeholder="Please list the names of other guests attending with you"></textarea>
+                </div>
+
+                <div class="form-group" id="dietaryGroup" style="display: none;">
+                    <label for="dietary">Dietary Restrictions or Allergies *</label>
+                    <textarea id="dietary" name="dietary" rows="3" placeholder="Please let us know of any dietary restrictions, allergies, or special meal requirements" required></textarea>
+                </div>
+
+                <div class="form-group" id="accessibilityGroup" style="display: none;">
+                    <label for="accessibility">Accessibility Requirements</label>
+                    <textarea id="accessibility" name="accessibility" rows="2" placeholder="Please let us know if you have any accessibility needs we should accommodate"></textarea>
+                </div>
+
+                <div class="form-group" id="songRequestGroup" style="display: none;">
+                    <label for="songRequest">Song Request</label>
+                    <input type="text" id="songRequest" name="songRequest" placeholder="Suggest a song to get you on the dance floor!">
+                </div>
+
+                <div class="form-group">
+                    <label for="message">Message to the Couple</label>
+                    <textarea id="message" name="message" rows="4" placeholder="Share your excitement or a special message (optional)"></textarea>
+                </div>
+
+                <button type="submit" class="submit-button">Submit RSVP</button>
+            </form>
+
+            <div id="successMessage" class="success-message" style="display: none;">
+                <div class="success-icon">✓</div>
+                <h3>Thank You!</h3>
+                <p>Your RSVP has been received. We can't wait to celebrate with you!</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Travel & Accommodations Section -->
+    <section class="travel">
+        <div class="container">
+            <h2 class="section-title">Travel & Accommodations</h2>
+            <div class="travel-grid">
+                <div class="travel-card">
+                    <h3>✈️ Getting There</h3>
+                    <p><strong>Venue:</strong><br>Clare College<br>Trinity Lane<br>Cambridge CB2 1TL<br>United Kingdom</p>
+                    <p><strong>Nearest Airport:</strong><br>London Stansted (STN)<br>Approximately 30 miles away</p>
+                </div>
+                <div class="travel-card">
+                    <h3>🏨 Accommodations</h3>
+                    <p>Hotel recommendations and booking information coming soon.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p class="footer-text">We can't wait to celebrate with you!</p>
+            <p class="footer-subtext">Shabnam & Arsham • 25 June 2026 • Clare College, Cambridge</p>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
