@@ -150,6 +150,15 @@ h1, h2, h3, h4, h5, h6 {
     margin-top: 60px;
 }
 
+.details-intro {
+    max-width: 720px;
+    margin: 0 auto;
+    text-align: center;
+    color: var(--text-light);
+    font-size: 1.05rem;
+    line-height: 1.8;
+}
+
 .detail-card {
     background-color: var(--white);
     padding: 40px 30px;
@@ -164,9 +173,19 @@ h1, h2, h3, h4, h5, h6 {
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
 }
 
-.detail-icon {
-    font-size: 3rem;
-    margin-bottom: 15px;
+.detail-step {
+    width: 52px;
+    height: 52px;
+    margin: 0 auto 18px;
+    border: 1px solid var(--secondary-color);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--secondary-color);
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.3rem;
+    letter-spacing: 1px;
 }
 
 .detail-card h3 {
@@ -175,11 +194,9 @@ h1, h2, h3, h4, h5, h6 {
     margin-bottom: 10px;
 }
 
-.detail-time {
-    font-size: 1.2rem;
-    font-weight: 600;
-    color: var(--secondary-color);
-    margin-bottom: 5px;
+.detail-card p {
+    color: var(--text-light);
+    line-height: 1.8;
 }
 
 /* RSVP Section */
