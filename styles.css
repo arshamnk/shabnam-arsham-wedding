@@ -368,6 +368,53 @@ h1, h2, h3, h4, h5, h6 {
     color: var(--text-dark);
 }
 
+/* Wedding Fund Section */
+.fund {
+    padding: 100px 0;
+    background-color: var(--white);
+}
+
+.fund-content {
+    max-width: 760px;
+    margin: 0 auto;
+    text-align: center;
+}
+
+.fund-copy {
+    margin-bottom: 20px;
+    font-size: 1.05rem;
+    line-height: 1.9;
+    color: var(--text-light);
+}
+
+.fund-note {
+    margin-top: 10px;
+    margin-bottom: 30px;
+    font-size: 0.95rem;
+    color: var(--text-dark);
+}
+
+.fund-actions {
+    display: flex;
+    justify-content: center;
+}
+
+.fund-button {
+    display: inline-block;
+    padding: 15px 32px;
+    border-radius: 3px;
+    background-color: var(--primary-color);
+    color: var(--white);
+    font-size: 0.9rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+
+.fund-button-disabled {
+    opacity: 0.75;
+    cursor: default;
+}
+
 /* Footer */
 .footer {
     padding: 60px 0;
@@ -452,7 +499,8 @@ h1, h2, h3, h4, h5, h6 {
     .story,
     .details,
     .rsvp,
-    .travel {
+    .travel,
+    .fund {
         padding: 60px 0;
     }
 }
