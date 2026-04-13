@@ -122,12 +122,18 @@
                 </div>
 
                 <div class="form-group" id="guestNamesGroup" style="display: none;">
-                    <label for="guestNames">Names of Additional Guests</label>
-                    <textarea id="guestNames" name="guestNames" rows="2" placeholder="Please list the names of other guests attending with you"></textarea>
+                    <label for="guestNames">Names of Additional Guests (Including Children)</label>
+                    <textarea id="guestNames" name="guestNames" rows="3" placeholder="Please list the full names of all additional guests attending with you, including any children"></textarea>
+                </div>
+
+                <div class="form-group" id="childrenAgesGroup" style="display: none;">
+                    <label for="childrenAges">Children's Ages</label>
+                    <textarea id="childrenAges" name="childrenAges" rows="2" placeholder="If children are attending, please list each child's name and age"></textarea>
                 </div>
 
                 <div class="form-group" id="dietaryGroup" style="display: none;">
                     <label for="dietary">Dietary Restrictions or Allergies *</label>
+                    <p class="form-help">Please be as specific as possible so we can make the appropriate arrangements.</p>
                     <textarea id="dietary" name="dietary" rows="3" placeholder="Please let us know of any dietary restrictions, allergies, or special meal requirements" required></textarea>
                 </div>
 
@@ -139,6 +145,10 @@
                 <div class="form-group" id="songRequestGroup" style="display: none;">
                     <label for="songRequest">Song Request</label>
                     <input type="text" id="songRequest" name="songRequest" placeholder="Suggest a song to get you on the dance floor!">
+                </div>
+
+                <div class="form-note" id="giftNoteGroup" style="display: none;">
+                    <p>If you would like to give a gift, we would be grateful for a cash contribution in lieu of traditional presents. We will share the relevant details with you by email at a later date.</p>
                 </div>
 
                 <div class="form-group">

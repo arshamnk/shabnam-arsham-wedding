@@ -5,10 +5,26 @@ document.addEventListener('DOMContentLoaded', function() {
     const guestCountGroup = document.getElementById('guestCountGroup');
     const childrenGroup = document.getElementById('childrenGroup');
     const guestNamesGroup = document.getElementById('guestNamesGroup');
+    const childrenAgesGroup = document.getElementById('childrenAgesGroup');
     const dietaryGroup = document.getElementById('dietaryGroup');
     const accessibilityGroup = document.getElementById('accessibilityGroup');
     const songRequestGroup = document.getElementById('songRequestGroup');
+    const giftNoteGroup = document.getElementById('giftNoteGroup');
     const successMessage = document.getElementById('successMessage');
+    const guestCountField = document.getElementById('guestCount');
+    const childrenCountField = document.getElementById('childrenCount');
+    const guestNamesField = document.getElementById('guestNames');
+    const childrenAgesField = document.getElementById('childrenAges');
+    const dietaryField = document.getElementById('dietary');
+
+    function updateGuestDetailsRequirements() {
+        const guestCount = parseInt(guestCountField.value, 10);
+        const childrenCount = parseInt(childrenCountField.value, 10);
+        const hasAdditionalGuests = guestCount > 1 || childrenCount > 0;
+
+        guestNamesField.required = hasAdditionalGuests;
+        childrenAgesField.required = childrenCount > 0;
+    }
 
     // Show/hide additional fields based on attendance selection
     attendingRadios.forEach(radio => {
@@ -17,23 +33,33 @@ document.addEventListener('DOMContentLoaded', function() {
                 guestCountGroup.style.display = 'block';
                 childrenGroup.style.display = 'block';
                 guestNamesGroup.style.display = 'block';
+                childrenAgesGroup.style.display = 'block';
                 dietaryGroup.style.display = 'block';
                 accessibilityGroup.style.display = 'block';
                 songRequestGroup.style.display = 'block';
-                document.getElementById('guestCount').required = true;
-                document.getElementById('dietary').required = true;
+                giftNoteGroup.style.display = 'block';
+                guestCountField.required = true;
+                dietaryField.required = true;
+                updateGuestDetailsRequirements();
             } else {
                 guestCountGroup.style.display = 'none';
                 childrenGroup.style.display = 'none';
                 guestNamesGroup.style.display = 'none';
+                childrenAgesGroup.style.display = 'none';
                 dietaryGroup.style.display = 'none';
                 accessibilityGroup.style.display = 'none';
                 songRequestGroup.style.display = 'none';
-                document.getElementById('guestCount').required = false;
-                document.getElementById('dietary').required = false;
+                giftNoteGroup.style.display = 'none';
+                guestCountField.required = false;
+                guestNamesField.required = false;
+                childrenAgesField.required = false;
+                dietaryField.required = false;
             }
         });
     });
+
+    guestCountField.addEventListener('change', updateGuestDetailsRequirements);
+    childrenCountField.addEventListener('change', updateGuestDetailsRequirements);
 
     // Smooth scroll for RSVP button
     document.querySelector('.cta-button').addEventListener('click', function(e) {
@@ -53,10 +79,11 @@ document.addEventListener('DOMContentLoaded', function() {
             email: document.getElementById('email').value,
             phone: document.getElementById('phone').value,
             attending: document.querySelector('input[name="attending"]:checked').value,
-            guestCount: document.getElementById('guestCount').value,
-            childrenCount: document.getElementById('childrenCount').value,
-            guestNames: document.getElementById('guestNames').value,
-            dietary: document.getElementById('dietary').value,
+            guestCount: guestCountField.value,
+            childrenCount: childrenCountField.value,
+            guestNames: guestNamesField.value,
+            childrenAges: childrenAgesField.value,
+            dietary: dietaryField.value,
             accessibility: document.getElementById('accessibility').value,
             songRequest: document.getElementById('songRequest').value,
             message: document.getElementById('message').value,
