@@ -15,7 +15,10 @@
         <div class="hero-content">
             <h1 class="couple-names">Shabnam & Arsham</h1>
             <div class="wedding-date">25 July 2026</div>
-            <div class="wedding-location">Clare College, Cambridge</div>
+            <div class="wedding-location">
+                Clare College, Cambridge
+                <span class="venue-address">Trinity Lane, Cambridge CB2 1TL</span>
+            </div>
             <a href="#rsvp" class="cta-button">RSVP Now</a>
         </div>
         <div class="scroll-indicator">↓</div>
@@ -64,140 +67,175 @@
     <!-- RSVP Section -->
     <section class="rsvp" id="rsvp">
         <div class="container">
-            <h2 class="section-title">RSVP</h2>
-            <p class="rsvp-subtitle">Please respond by the date provided in your invitation</p>
-            
-            <form id="rsvpForm" class="rsvp-form">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="firstName">First Name *</label>
-                        <input type="text" id="firstName" name="firstName" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="lastName">Last Name *</label>
-                        <input type="text" id="lastName" name="lastName" required>
-                    </div>
-                </div>
+            <h2 class="section-title">Before You RSVP</h2>
+            <p class="rsvp-subtitle">A few practical notes first. The wedding fund is highlighted here rather than hidden after the form, and accommodation interest is collected within the RSVP itself.</p>
 
-                <div class="form-group">
-                    <label for="email">Email Address *</label>
-                    <input type="email" id="email" name="email" required>
-                </div>
-
-                <div class="form-group">
-                    <label for="phone">Phone Number</label>
-                    <input type="tel" id="phone" name="phone">
-                </div>
-
-                <div class="form-group">
-                    <label>Will you be attending? *</label>
-                    <div class="radio-group">
-                        <label class="radio-label">
-                            <input type="radio" name="attending" value="yes" required>
-                            <span>Joyfully accepts</span>
-                        </label>
-                        <label class="radio-label">
-                            <input type="radio" name="attending" value="no">
-                            <span>Regretfully declines</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="form-group" id="guestCountGroup" style="display: none;">
-                    <label for="guestCount">Number of Adults (including yourself) *</label>
-                    <select id="guestCount" name="guestCount">
-                        <option value="1">1 Adult</option>
-                        <option value="2">2 Adults</option>
-                        <option value="3">3 Adults</option>
-                        <option value="4">4 Adults</option>
-                    </select>
-                </div>
-
-                <div class="form-group" id="childrenGroup" style="display: none;">
-                    <label for="childrenCount">Number of Children</label>
-                    <select id="childrenCount" name="childrenCount">
-                        <option value="0">No children</option>
-                        <option value="1">1 Child</option>
-                        <option value="2">2 Children</option>
-                        <option value="3">3 Children</option>
-                        <option value="4">4 Children</option>
-                    </select>
-                </div>
-
-                <div class="form-group" id="guestNamesGroup" style="display: none;">
-                    <label for="guestNames">Names of Additional Guests (Including Children)</label>
-                    <textarea id="guestNames" name="guestNames" rows="3" placeholder="Please list the full names of all additional guests attending with you, including any children"></textarea>
-                </div>
-
-                <div class="form-group" id="childrenAgesGroup" style="display: none;">
-                    <label for="childrenAges">Children's Ages</label>
-                    <textarea id="childrenAges" name="childrenAges" rows="2" placeholder="If children are attending, please list each child's name and age"></textarea>
-                </div>
-
-                <div class="form-group" id="dietaryGroup" style="display: none;">
-                    <label for="dietary">Dietary Restrictions or Allergies *</label>
-                    <p class="form-help">Please be as specific as possible so we can make the appropriate arrangements.</p>
-                    <textarea id="dietary" name="dietary" rows="3" placeholder="Please let us know of any dietary restrictions, allergies, or special meal requirements" required></textarea>
-                </div>
-
-                <div class="form-group" id="accessibilityGroup" style="display: none;">
-                    <label for="accessibility">Accessibility Requirements</label>
-                    <textarea id="accessibility" name="accessibility" rows="2" placeholder="Please let us know if you have any accessibility needs we should accommodate"></textarea>
-                </div>
-
-                <div class="form-group" id="songRequestGroup" style="display: none;">
-                    <label for="songRequest">Song Request</label>
-                    <input type="text" id="songRequest" name="songRequest" placeholder="Suggest a song to get you on the dance floor!">
-                </div>
-
-                <div class="form-note" id="giftNoteGroup" style="display: none;">
-                    <p>If you wish to give a gift, please see our wedding fund note below. We will share contribution details by email in due course.</p>
-                </div>
-
-                <div class="form-group">
-                    <label for="message">Message to the Couple</label>
-                    <textarea id="message" name="message" rows="4" placeholder="Share your excitement or a special message (optional)"></textarea>
-                </div>
-
-                <button type="submit" class="submit-button">Submit RSVP</button>
-            </form>
-
-            <div id="successMessage" class="success-message" style="display: none;">
-                <div class="success-icon">✓</div>
-                <h3>Thank You!</h3>
-                <p>Your RSVP has been received. We can't wait to celebrate with you!</p>
+            <div class="rsvp-overview-grid">
+                <article class="rsvp-card rsvp-card-emphasis">
+                    <p class="card-eyebrow">Please Read</p>
+                    <h3>Wedding Fund</h3>
+                    <p>If you wish to mark the occasion with a gift, we would be deeply grateful for a contribution to our wedding fund.</p>
+                    <a href="#wedding-fund-note" class="card-link">Read The Full Note</a>
+                </article>
+                <article class="rsvp-card">
+                    <p class="card-eyebrow">Inside The Form</p>
+                    <h3>College Accommodation</h3>
+                    <p>There may be a limited option to stay in college. If this might be of interest, please tell us in the RSVP so we can estimate numbers soon.</p>
+                </article>
+                <article class="rsvp-card">
+                    <p class="card-eyebrow">What To Have Ready</p>
+                    <h3>RSVP Details</h3>
+                    <p>Please reply by the date on your invitation and be ready to share guest names, dietary requirements, and any accessibility needs.</p>
+                    <a href="#rsvp-form-panel" class="card-link">Go To RSVP Form</a>
+                </article>
             </div>
-        </div>
-    </section>
 
-    <!-- Travel & Accommodations Section -->
-    <section class="travel">
-        <div class="container">
-            <h2 class="section-title">Travel & Accommodations</h2>
-            <div class="travel-grid">
-                <div class="travel-card">
-                    <h3>✈️ Getting There</h3>
-                    <p><strong>Venue:</strong><br>Clare College<br>Trinity Lane<br>Cambridge CB2 1TL<br>United Kingdom</p>
-                    <p><strong>Nearest Airport:</strong><br>London Stansted (STN)<br>Approximately 30 miles away</p>
-                </div>
-                <div class="travel-card">
-                    <h3>🏨 Accommodations</h3>
-                    <p>Hotel recommendations and booking information coming soon.</p>
-                </div>
-            </div>
-        </div>
-    </section>
+            <div class="rsvp-layout">
+                <aside class="rsvp-note-panel" id="wedding-fund-note">
+                    <p class="panel-eyebrow">Gift Note</p>
+                    <h3 class="panel-title">Wedding Fund</h3>
+                    <p>We are so grateful to have you in our lives as we begin this next chapter together. If you wish to mark the occasion with a gift, we would be deeply grateful for a contribution to our wedding fund.</p>
+                    <p>Many of our friends have asked whether £100 per adult would be a helpful guide, and it would, though please feel entirely free to give more or less as you wish. Most importantly, your love and support mean the world to us.</p>
+                    <p class="panel-note">Contribution details will be shared by email once we have finalised the payment method.</p>
+                    <div class="panel-actions">
+                        <span class="fund-button fund-button-disabled" aria-disabled="true">Secure Contribution Link Coming Soon</span>
+                    </div>
+                </aside>
 
-    <!-- Wedding Fund Section -->
-    <section class="fund" id="wedding-fund">
-        <div class="container">
-            <h2 class="section-title">Wedding Fund</h2>
-            <div class="fund-content">
-                <p class="fund-copy">We are so grateful to have you in our lives as we begin this next chapter together. If you wish to mark the occasion with a gift, we would be deeply grateful for a contribution to our wedding fund.</p>
-                <p class="fund-copy">Many of our friends have asked whether £100 per adult would be a helpful guide, and it would, though please feel entirely free to give more or less as you wish. Most importantly, your love and support mean the world to us.</p>
-                <p class="fund-note">Contribution details will be shared by email once we have finalised the payment method.</p>
-                <div class="fund-actions">
-                    <span class="fund-button fund-button-disabled" aria-disabled="true">Secure Contribution Link Coming Soon</span>
+                <div class="rsvp-form-panel" id="rsvp-form-panel">
+                    <h3 class="panel-title">RSVP</h3>
+                    <p class="panel-intro">Please respond by the date provided in your invitation. If you are attending, do also let us know whether you might want college accommodation.</p>
+
+                    <form id="rsvpForm" class="rsvp-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="firstName">First Name *</label>
+                                <input type="text" id="firstName" name="firstName" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="lastName">Last Name *</label>
+                                <input type="text" id="lastName" name="lastName" required>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="email">Email Address *</label>
+                            <input type="email" id="email" name="email" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="phone">Phone Number</label>
+                            <input type="tel" id="phone" name="phone">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Will you be attending? *</label>
+                            <div class="radio-group">
+                                <label class="radio-label">
+                                    <input type="radio" name="attending" value="yes" required>
+                                    <span>Joyfully accepts</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="attending" value="no">
+                                    <span>Regretfully declines</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group" id="guestCountGroup" style="display: none;">
+                            <label for="guestCount">Number of Adults (including yourself) *</label>
+                            <select id="guestCount" name="guestCount">
+                                <option value="1">1 Adult</option>
+                                <option value="2">2 Adults</option>
+                                <option value="3">3 Adults</option>
+                                <option value="4">4 Adults</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group" id="childrenGroup" style="display: none;">
+                            <label for="childrenCount">Number of Children</label>
+                            <select id="childrenCount" name="childrenCount">
+                                <option value="0">No children</option>
+                                <option value="1">1 Child</option>
+                                <option value="2">2 Children</option>
+                                <option value="3">3 Children</option>
+                                <option value="4">4 Children</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group" id="guestNamesGroup" style="display: none;">
+                            <label for="guestNames">Names of Additional Guests (Including Children)</label>
+                            <textarea id="guestNames" name="guestNames" rows="3" placeholder="Please list the full names of all additional guests attending with you, including any children"></textarea>
+                        </div>
+
+                        <div class="form-group" id="childrenAgesGroup" style="display: none;">
+                            <label for="childrenAges">Children's Ages</label>
+                            <textarea id="childrenAges" name="childrenAges" rows="2" placeholder="If children are attending, please list each child's name and age"></textarea>
+                        </div>
+
+                        <div class="form-group" id="dietaryGroup" style="display: none;">
+                            <label for="dietary">Dietary Restrictions or Allergies *</label>
+                            <p class="form-help">Please be as specific as possible so we can make the appropriate arrangements.</p>
+                            <textarea id="dietary" name="dietary" rows="3" placeholder="Please let us know of any dietary restrictions, allergies, or special meal requirements" required></textarea>
+                        </div>
+
+                        <div class="form-group" id="accessibilityGroup" style="display: none;">
+                            <label for="accessibility">Accessibility Requirements</label>
+                            <textarea id="accessibility" name="accessibility" rows="2" placeholder="Please let us know if you have any accessibility needs we should accommodate"></textarea>
+                        </div>
+
+                        <div class="form-group" id="accommodationInterestGroup" style="display: none;">
+                            <label>Would anyone in your party be interested in staying in college if rooms are available? *</label>
+                            <p class="form-help">This is not a booking, but we may need an indication of numbers quite soon.</p>
+                            <div class="radio-group radio-group-stacked">
+                                <label class="radio-label">
+                                    <input type="radio" name="accommodationInterest" value="yes">
+                                    <span>Yes, likely</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="accommodationInterest" value="maybe">
+                                    <span>Maybe</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="accommodationInterest" value="no">
+                                    <span>No, thank you</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group" id="accommodationCountGroup" style="display: none;">
+                            <label for="accommodationCount">How many guests in your party might want college accommodation? *</label>
+                            <select id="accommodationCount" name="accommodationCount">
+                                <option value="">Please select</option>
+                                <option value="1">1 guest</option>
+                                <option value="2">2 guests</option>
+                                <option value="3">3 guests</option>
+                                <option value="4">4 guests</option>
+                                <option value="5">5 guests</option>
+                                <option value="6">6 guests</option>
+                                <option value="7">7 guests</option>
+                                <option value="8">8 guests</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group" id="songRequestGroup" style="display: none;">
+                            <label for="songRequest">Song Request</label>
+                            <input type="text" id="songRequest" name="songRequest" placeholder="Suggest a song to get you on the dance floor!">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="message">Message to the Couple</label>
+                            <textarea id="message" name="message" rows="4" placeholder="Share your excitement or a special message (optional)"></textarea>
+                        </div>
+
+                        <button type="submit" class="submit-button">Submit RSVP</button>
+                    </form>
+
+                    <div id="successMessage" class="success-message" style="display: none;">
+                        <div class="success-icon">✓</div>
+                        <h3>Thank You!</h3>
+                        <p>Your RSVP has been received. We can't wait to celebrate with you!</p>
+                    </div>
                 </div>
             </div>
         </div>
