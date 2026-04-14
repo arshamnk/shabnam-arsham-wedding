@@ -408,6 +408,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .protected-shell {
     margin-top: 8px;
+    scroll-margin-top: 28px;
 }
 
 .protected-shell-header {

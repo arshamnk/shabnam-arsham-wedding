@@ -81,8 +81,10 @@ function getElements() {
         authStatusBar: document.getElementById('authStatusBar'),
         authStatusText: document.getElementById('authStatusText'),
         heroGuestLoginButton: document.getElementById('heroGuestLoginButton'),
+        openGuestAreaButton: document.getElementById('openGuestAreaButton'),
         authView: document.getElementById('authView'),
         guestView: document.getElementById('guestView'),
+        guestAreaTitle: document.getElementById('guestAreaTitle'),
         adminView: document.getElementById('adminView'),
         adminDashboardTitle: document.getElementById('adminDashboardTitle'),
         adminAccessPanel: document.getElementById('adminAccessPanel'),
@@ -196,6 +198,7 @@ async function syncSession(user, state, elements) {
         elements.verificationGate.classList.add('hidden');
         elements.guestView.classList.add('hidden');
         elements.adminView.classList.add('hidden');
+        elements.openGuestAreaButton.classList.add('hidden');
         elements.openDashboardButton.classList.add('hidden');
         resetRsvpForm(elements, null);
         switchAuthTab('sign-in', elements);
@@ -213,6 +216,7 @@ async function syncSession(user, state, elements) {
         elements.verificationGate.classList.remove('hidden');
         elements.guestView.classList.add('hidden');
         elements.adminView.classList.add('hidden');
+        elements.openGuestAreaButton.classList.add('hidden');
         elements.openDashboardButton.classList.add('hidden');
         elements.verificationEmail.textContent = user.email || '';
         setBanner(elements, 'Verify your email before protected content, bank details, and RSVP submissions become available. Please check your spam folder as well as your inbox.', 'info');
@@ -252,6 +256,7 @@ async function syncSession(user, state, elements) {
         elements.authView.classList.add('hidden');
         elements.guestView.classList.add('hidden');
         elements.adminView.classList.remove('hidden');
+        elements.openGuestAreaButton.classList.add('hidden');
         elements.openDashboardButton.classList.remove('hidden');
         setBanner(elements, 'Verified admin access enabled. RSVP submissions are shown below.', 'success');
         renderAdminEntries(state.adminEntries, state, elements);
@@ -263,10 +268,12 @@ async function syncSession(user, state, elements) {
     elements.authStatusText.textContent = `Signed in as ${user.email}`;
     elements.authView.classList.add('hidden');
     elements.adminView.classList.add('hidden');
+    elements.openGuestAreaButton.classList.remove('hidden');
     elements.openDashboardButton.classList.add('hidden');
     elements.guestView.classList.remove('hidden');
     setBanner(elements, 'You are signed in with a verified email address. The protected RSVP form and wedding fund details are now visible.', 'success');
     await loadGuestRsvp(state, elements, user);
+    openGuestArea(elements);
 }
 
 async function isAdminUser(user, state) {
@@ -302,6 +309,10 @@ function bindAuthTabs(elements) {
 function bindProtectedInteractions(state, elements) {
     elements.signOutButtons.forEach((button) => {
         button.addEventListener('click', () => handleSignOut(state, elements));
+    });
+
+    elements.openGuestAreaButton.addEventListener('click', () => {
+        openGuestArea(elements);
     });
 
     elements.openDashboardButton.addEventListener('click', () => {
@@ -1162,6 +1173,17 @@ function openAdminDashboard(target, state, elements) {
         }
 
         elements.adminDashboardTitle?.focus?.({ preventScroll: true });
+    });
+}
+
+function openGuestArea(elements) {
+    window.requestAnimationFrame(() => {
+        elements.guestView.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+        });
+
+        elements.guestAreaTitle?.focus?.({ preventScroll: true });
     });
 }
 
