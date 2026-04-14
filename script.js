@@ -1,202 +1,835 @@
-// RSVP Form Handling
-document.addEventListener('DOMContentLoaded', function() {
-    const form = document.getElementById('rsvpForm');
-    const attendingRadios = document.querySelectorAll('input[name="attending"]');
-    const guestCountGroup = document.getElementById('guestCountGroup');
-    const childrenGroup = document.getElementById('childrenGroup');
-    const guestNamesGroup = document.getElementById('guestNamesGroup');
-    const childrenAgesGroup = document.getElementById('childrenAgesGroup');
-    const dietaryGroup = document.getElementById('dietaryGroup');
-    const accessibilityGroup = document.getElementById('accessibilityGroup');
-    const accommodationInterestGroup = document.getElementById('accommodationInterestGroup');
-    const accommodationCountGroup = document.getElementById('accommodationCountGroup');
-    const songRequestGroup = document.getElementById('songRequestGroup');
-    const successMessage = document.getElementById('successMessage');
-    const guestCountField = document.getElementById('guestCount');
-    const childrenCountField = document.getElementById('childrenCount');
-    const guestNamesField = document.getElementById('guestNames');
-    const childrenAgesField = document.getElementById('childrenAges');
-    const dietaryField = document.getElementById('dietary');
-    const accessibilityField = document.getElementById('accessibility');
-    const accommodationInterestFields = document.querySelectorAll('input[name="accommodationInterest"]');
-    const accommodationCountField = document.getElementById('accommodationCount');
-    const songRequestField = document.getElementById('songRequest');
+import { appConfig } from './app-config.js';
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
+import {
+    createUserWithEmailAndPassword,
+    getAuth,
+    onAuthStateChanged,
+    sendEmailVerification,
+    signInWithEmailAndPassword,
+    signOut,
+    updateProfile
+} from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
+import {
+    collection,
+    doc,
+    getDoc,
+    getFirestore,
+    onSnapshot,
+    orderBy,
+    query,
+    serverTimestamp,
+    setDoc
+} from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
 
-    function setGroupVisibility(group, isVisible) {
-        group.style.display = isVisible ? 'block' : 'none';
+const REQUIRED_FIREBASE_KEYS = [
+    'apiKey',
+    'authDomain',
+    'projectId',
+    'appId'
+];
+
+document.addEventListener('DOMContentLoaded', () => {
+    const elements = getElements();
+    const state = {
+        auth: null,
+        db: null,
+        currentUser: null,
+        isAdmin: false,
+        adminUnsubscribe: null,
+        existingRsvp: null
+    };
+
+    attachStaticInteractions(elements);
+    bindFormVisibilityHandlers(elements);
+    bindAuthTabs(elements);
+    renderWeddingFundDetails(elements);
+    resetRsvpForm(elements, null);
+
+    elements.signInForm.addEventListener('submit', (event) => handleSignIn(event, state, elements));
+    elements.signUpForm.addEventListener('submit', (event) => handleSignUp(event, state, elements));
+    elements.recheckVerificationButton.addEventListener('click', () => refreshSession(state, elements));
+    elements.refreshSessionButton.addEventListener('click', () => refreshSession(state, elements));
+    elements.resendVerificationButton.addEventListener('click', () => resendVerification(state, elements));
+    elements.signOutButton.addEventListener('click', () => handleSignOut(state, elements));
+    elements.rsvpForm.addEventListener('submit', (event) => handleRsvpSubmit(event, state, elements));
+
+    if (!hasFirebaseConfig(appConfig.firebase)) {
+        elements.setupNotice.classList.remove('hidden');
+        elements.authView.classList.add('hidden');
+        setBanner(elements, 'Firebase is not configured yet. Add your project details in app-config.js before testing sign-in, RSVP storage, or the admin view.', 'error');
+        return;
     }
 
-    function updateGuestDetailsRequirements() {
-        const guestCount = parseInt(guestCountField.value, 10);
-        const childrenCount = parseInt(childrenCountField.value, 10);
-        const hasAdditionalGuests = guestCount > 1 || childrenCount > 0;
+    initializeFirebase(state, elements);
+});
 
-        guestNamesField.required = hasAdditionalGuests;
-        childrenAgesField.required = childrenCount > 0;
+function getElements() {
+    return {
+        authMessage: document.getElementById('authMessage'),
+        authStatusBar: document.getElementById('authStatusBar'),
+        authStatusText: document.getElementById('authStatusText'),
+        authView: document.getElementById('authView'),
+        guestView: document.getElementById('guestView'),
+        adminView: document.getElementById('adminView'),
+        adminList: document.getElementById('adminList'),
+        adminEmptyState: document.getElementById('adminEmptyState'),
+        adminRsvpCount: document.getElementById('adminRsvpCount'),
+        setupNotice: document.getElementById('setupNotice'),
+        verificationGate: document.getElementById('verificationGate'),
+        verificationEmail: document.getElementById('verificationEmail'),
+        signInForm: document.getElementById('signInForm'),
+        signUpForm: document.getElementById('signUpForm'),
+        signInTab: document.getElementById('signInTab'),
+        signUpTab: document.getElementById('signUpTab'),
+        signInEmail: document.getElementById('signInEmail'),
+        signInPassword: document.getElementById('signInPassword'),
+        signUpFirstName: document.getElementById('signUpFirstName'),
+        signUpLastName: document.getElementById('signUpLastName'),
+        signUpEmail: document.getElementById('signUpEmail'),
+        signUpPassword: document.getElementById('signUpPassword'),
+        signUpPasswordConfirm: document.getElementById('signUpPasswordConfirm'),
+        resendVerificationButton: document.getElementById('resendVerificationButton'),
+        recheckVerificationButton: document.getElementById('recheckVerificationButton'),
+        refreshSessionButton: document.getElementById('refreshSessionButton'),
+        signOutButton: document.getElementById('signOutButton'),
+        rsvpForm: document.getElementById('rsvpForm'),
+        submitRsvpButton: document.getElementById('submitRsvpButton'),
+        successMessage: document.getElementById('successMessage'),
+        successMessageText: document.getElementById('successMessageText'),
+        firstName: document.getElementById('firstName'),
+        lastName: document.getElementById('lastName'),
+        email: document.getElementById('email'),
+        phone: document.getElementById('phone'),
+        guestCountGroup: document.getElementById('guestCountGroup'),
+        childrenGroup: document.getElementById('childrenGroup'),
+        guestNamesGroup: document.getElementById('guestNamesGroup'),
+        childrenAgesGroup: document.getElementById('childrenAgesGroup'),
+        dietaryGroup: document.getElementById('dietaryGroup'),
+        accessibilityGroup: document.getElementById('accessibilityGroup'),
+        accommodationInterestGroup: document.getElementById('accommodationInterestGroup'),
+        accommodationCountGroup: document.getElementById('accommodationCountGroup'),
+        songRequestGroup: document.getElementById('songRequestGroup'),
+        attendingRadios: Array.from(document.querySelectorAll('input[name="attending"]')),
+        accommodationInterestFields: Array.from(document.querySelectorAll('input[name="accommodationInterest"]')),
+        guestCountField: document.getElementById('guestCount'),
+        childrenCountField: document.getElementById('childrenCount'),
+        guestNamesField: document.getElementById('guestNames'),
+        childrenAgesField: document.getElementById('childrenAges'),
+        dietaryField: document.getElementById('dietary'),
+        accessibilityField: document.getElementById('accessibility'),
+        accommodationCountField: document.getElementById('accommodationCount'),
+        songRequestField: document.getElementById('songRequest'),
+        messageField: document.getElementById('message'),
+        fundBankName: document.getElementById('fundBankName'),
+        fundAccountName: document.getElementById('fundAccountName'),
+        fundSortCode: document.getElementById('fundSortCode'),
+        fundAccountNumber: document.getElementById('fundAccountNumber'),
+        fundContactEmail: document.getElementById('fundContactEmail')
+    };
+}
+
+function hasFirebaseConfig(firebaseConfig) {
+    const config = firebaseConfig || {};
+
+    return REQUIRED_FIREBASE_KEYS.every((key) => {
+        const value = config[key];
+        return typeof value === 'string' && value.trim().length > 0;
+    });
+}
+
+function initializeFirebase(state, elements) {
+    const firebaseApp = initializeApp(appConfig.firebase);
+    state.auth = getAuth(firebaseApp);
+    state.db = getFirestore(firebaseApp);
+
+    onAuthStateChanged(state.auth, async (user) => {
+        await syncSession(user, state, elements);
+    });
+}
+
+async function syncSession(user, state, elements) {
+    state.currentUser = user;
+    clearAdminSubscription(state);
+    hideSuccessMessage(elements);
+
+    if (!user) {
+        state.isAdmin = false;
+        state.existingRsvp = null;
+        elements.authStatusBar.classList.add('hidden');
+        elements.authView.classList.remove('hidden');
+        elements.verificationGate.classList.add('hidden');
+        elements.guestView.classList.add('hidden');
+        elements.adminView.classList.add('hidden');
+        resetRsvpForm(elements, null);
+        switchAuthTab('sign-in', elements);
+        return;
     }
 
-    function updateAccommodationRequirements() {
-        const selectedAccommodation = document.querySelector('input[name="accommodationInterest"]:checked');
-        const mayNeedAccommodation = selectedAccommodation &&
-            (selectedAccommodation.value === 'yes' || selectedAccommodation.value === 'maybe');
+    elements.authStatusBar.classList.remove('hidden');
+    elements.authStatusText.textContent = user.emailVerified
+        ? `Signed in as ${user.email}`
+        : `Signed in as ${user.email}. Email verification is still required.`;
 
-        setGroupVisibility(accommodationCountGroup, Boolean(mayNeedAccommodation));
-        accommodationCountField.required = Boolean(mayNeedAccommodation);
+    if (!user.emailVerified) {
+        elements.authView.classList.add('hidden');
+        elements.verificationGate.classList.remove('hidden');
+        elements.guestView.classList.add('hidden');
+        elements.adminView.classList.add('hidden');
+        elements.verificationEmail.textContent = user.email || '';
+        setBanner(elements, 'Verify your email before protected content, bank details, and RSVP submissions become available.', 'info');
+        return;
+    }
 
-        if (!mayNeedAccommodation) {
-            accommodationCountField.value = '';
+    elements.verificationGate.classList.add('hidden');
+
+    try {
+        const configuredAdminEmails = (appConfig.adminEmails || []).map((email) => email.trim().toLowerCase());
+        const isConfiguredAdmin = configuredAdminEmails.includes((user.email || '').trim().toLowerCase());
+
+        if (isConfiguredAdmin) {
+            state.isAdmin = true;
+        } else {
+            const adminSnapshot = await getDoc(doc(state.db, 'admins', user.uid));
+            state.isAdmin = adminSnapshot.exists();
         }
+    } catch (error) {
+        state.isAdmin = false;
+        setBanner(elements, friendlyErrorMessage(error), 'error');
+        return;
     }
 
-    function resetAttendingDetails() {
-        guestCountField.value = '1';
-        childrenCountField.value = '0';
-        guestNamesField.value = '';
-        childrenAgesField.value = '';
-        dietaryField.value = '';
-        accessibilityField.value = '';
-        accommodationCountField.value = '';
-        songRequestField.value = '';
-
-        accommodationInterestFields.forEach(field => {
-            field.checked = false;
-            field.required = false;
-        });
+    if (state.isAdmin) {
+        elements.authView.classList.add('hidden');
+        elements.guestView.classList.add('hidden');
+        elements.adminView.classList.remove('hidden');
+        setBanner(elements, 'Verified admin access enabled. RSVP submissions are shown below.', 'success');
+        subscribeToAdminRsvps(state, elements);
+        return;
     }
 
-    function updateAttendingFields(isAttending) {
-        setGroupVisibility(guestCountGroup, isAttending);
-        setGroupVisibility(childrenGroup, isAttending);
-        setGroupVisibility(guestNamesGroup, isAttending);
-        setGroupVisibility(childrenAgesGroup, isAttending);
-        setGroupVisibility(dietaryGroup, isAttending);
-        setGroupVisibility(accessibilityGroup, isAttending);
-        setGroupVisibility(accommodationInterestGroup, isAttending);
-        setGroupVisibility(songRequestGroup, isAttending);
+    elements.authView.classList.add('hidden');
+    elements.adminView.classList.add('hidden');
+    elements.guestView.classList.remove('hidden');
+    setBanner(elements, 'You are signed in with a verified email address. The protected RSVP form and wedding fund details are now visible.', 'success');
+    await loadGuestRsvp(state, elements, user);
+}
 
-        guestCountField.required = isAttending;
-        dietaryField.required = isAttending;
-        accommodationInterestFields.forEach(field => {
-            field.required = isAttending;
-        });
+function bindAuthTabs(elements) {
+    elements.signInTab.addEventListener('click', () => switchAuthTab('sign-in', elements));
+    elements.signUpTab.addEventListener('click', () => switchAuthTab('sign-up', elements));
+}
 
-        if (isAttending) {
-            updateGuestDetailsRequirements();
-            updateAccommodationRequirements();
+function switchAuthTab(tabName, elements) {
+    const showingSignIn = tabName === 'sign-in';
+    elements.signInTab.classList.toggle('auth-tab-active', showingSignIn);
+    elements.signInTab.setAttribute('aria-selected', String(showingSignIn));
+    elements.signUpTab.classList.toggle('auth-tab-active', !showingSignIn);
+    elements.signUpTab.setAttribute('aria-selected', String(!showingSignIn));
+    elements.signInForm.classList.toggle('hidden', !showingSignIn);
+    elements.signUpForm.classList.toggle('hidden', showingSignIn);
+}
+
+async function handleSignIn(event, state, elements) {
+    event.preventDefault();
+
+    if (!state.auth) {
+        setBanner(elements, 'Firebase is not configured yet.', 'error');
+        return;
+    }
+
+    const email = elements.signInEmail.value.trim();
+    const password = elements.signInPassword.value;
+    const restore = setBusy(elements.signInForm.querySelector('button[type="submit"]'), 'Signing In...');
+
+    try {
+        await signInWithEmailAndPassword(state.auth, email, password);
+        elements.signInPassword.value = '';
+        setBanner(elements, 'Signed in successfully.', 'success');
+    } catch (error) {
+        setBanner(elements, friendlyErrorMessage(error), 'error');
+    } finally {
+        restore();
+    }
+}
+
+async function handleSignUp(event, state, elements) {
+    event.preventDefault();
+
+    if (!state.auth) {
+        setBanner(elements, 'Firebase is not configured yet.', 'error');
+        return;
+    }
+
+    const firstName = elements.signUpFirstName.value.trim();
+    const lastName = elements.signUpLastName.value.trim();
+    const email = elements.signUpEmail.value.trim();
+    const password = elements.signUpPassword.value;
+    const confirmPassword = elements.signUpPasswordConfirm.value;
+
+    if (password !== confirmPassword) {
+        setBanner(elements, 'Passwords do not match.', 'error');
+        return;
+    }
+
+    if (password.length < 8) {
+        setBanner(elements, 'Please choose a password with at least 8 characters.', 'error');
+        return;
+    }
+
+    const restore = setBusy(elements.signUpForm.querySelector('button[type="submit"]'), 'Creating Account...');
+
+    try {
+        const credential = await createUserWithEmailAndPassword(state.auth, email, password);
+        const displayName = `${firstName} ${lastName}`.trim();
+
+        if (displayName) {
+            await updateProfile(credential.user, { displayName });
+        }
+
+        await sendEmailVerification(credential.user);
+        elements.signUpPassword.value = '';
+        elements.signUpPasswordConfirm.value = '';
+        setBanner(elements, 'Account created. Please check your inbox and click the verification link before continuing.', 'success');
+    } catch (error) {
+        setBanner(elements, friendlyErrorMessage(error), 'error');
+    } finally {
+        restore();
+    }
+}
+
+async function resendVerification(state, elements) {
+    if (!state.currentUser) {
+        return;
+    }
+
+    const restore = setBusy(elements.resendVerificationButton, 'Sending...');
+
+    try {
+        await sendEmailVerification(state.currentUser);
+        setBanner(elements, 'A fresh verification email has been sent.', 'success');
+    } catch (error) {
+        setBanner(elements, friendlyErrorMessage(error), 'error');
+    } finally {
+        restore();
+    }
+}
+
+async function refreshSession(state, elements) {
+    if (!state.currentUser) {
+        return;
+    }
+
+    const restore = setBusy(elements.refreshSessionButton, 'Refreshing...');
+    const restoreVerify = setBusy(elements.recheckVerificationButton, 'Checking...');
+
+    try {
+        await state.currentUser.reload();
+        await state.currentUser.getIdToken(true);
+        await syncSession(state.auth.currentUser, state, elements);
+
+        if (state.auth.currentUser?.emailVerified) {
+            setBanner(elements, 'Email verification confirmed. Access refreshed.', 'success');
+        } else {
+            setBanner(elements, 'The account is still not showing as verified. If you just clicked the email link, wait a moment and try again.', 'info');
+        }
+    } catch (error) {
+        setBanner(elements, friendlyErrorMessage(error), 'error');
+    } finally {
+        restore();
+        restoreVerify();
+    }
+}
+
+async function handleSignOut(state, elements) {
+    if (!state.auth) {
+        return;
+    }
+
+    try {
+        await signOut(state.auth);
+        setBanner(elements, 'You have been signed out.', 'success');
+    } catch (error) {
+        setBanner(elements, friendlyErrorMessage(error), 'error');
+    }
+}
+
+function renderWeddingFundDetails(elements) {
+    const fund = appConfig.weddingFund || {};
+    const bankName = fund.bankName?.trim() || 'Add bank name in app-config.js';
+    const accountName = fund.accountName?.trim() || 'Add account name in app-config.js';
+    const sortCode = fund.sortCode?.trim() || 'Add sort code in app-config.js';
+    const accountNumber = fund.accountNumber?.trim() || 'Add account number in app-config.js';
+    const contactEmail = fund.contactEmail?.trim() || 'replace-me@example.com';
+
+    elements.fundBankName.textContent = bankName;
+    elements.fundAccountName.textContent = accountName;
+    elements.fundSortCode.textContent = sortCode;
+    elements.fundAccountNumber.textContent = accountNumber;
+    elements.fundContactEmail.textContent = contactEmail;
+    elements.fundContactEmail.href = `mailto:${contactEmail}`;
+}
+
+async function loadGuestRsvp(state, elements, user) {
+    prefillIdentityFields(elements, user);
+
+    try {
+        const snapshot = await getDoc(doc(state.db, 'rsvps', user.uid));
+
+        if (!snapshot.exists()) {
+            state.existingRsvp = null;
+            resetRsvpForm(elements, user);
             return;
         }
 
-        guestNamesField.required = false;
-        childrenAgesField.required = false;
-        accommodationCountField.required = false;
-        setGroupVisibility(accommodationCountGroup, false);
-        resetAttendingDetails();
+        state.existingRsvp = snapshot.data();
+        populateRsvpForm(elements, user, state.existingRsvp);
+    } catch (error) {
+        setBanner(elements, friendlyErrorMessage(error), 'error');
+    }
+}
+
+function resetRsvpForm(elements, user) {
+    elements.rsvpForm.reset();
+    clearRadioGroup(elements.attendingRadios);
+    clearRadioGroup(elements.accommodationInterestFields);
+    elements.guestCountField.value = '1';
+    elements.childrenCountField.value = '0';
+    elements.accommodationCountField.value = '';
+    prefillIdentityFields(elements, user);
+    updateAttendingFields(false, elements);
+    hideSuccessMessage(elements);
+    elements.submitRsvpButton.textContent = 'Save RSVP';
+}
+
+function populateRsvpForm(elements, user, data) {
+    const { firstName, lastName } = splitName(data.firstName, data.lastName, user?.displayName);
+
+    elements.firstName.value = firstName;
+    elements.lastName.value = lastName;
+    elements.email.value = user?.email || data.email || '';
+    elements.phone.value = data.phone || '';
+    setRadioValue(elements.attendingRadios, data.attending || '');
+    updateAttendingFields(data.attending === 'yes', elements);
+    elements.guestCountField.value = data.guestCount || '1';
+    elements.childrenCountField.value = data.childrenCount || '0';
+    elements.guestNamesField.value = data.guestNames || '';
+    elements.childrenAgesField.value = data.childrenAges || '';
+    elements.dietaryField.value = data.dietary || '';
+    elements.accessibilityField.value = data.accessibility || '';
+    setRadioValue(elements.accommodationInterestFields, data.accommodationInterest || '');
+    updateAccommodationRequirements(elements);
+    elements.accommodationCountField.value = data.accommodationCount || '';
+    elements.songRequestField.value = data.songRequest || '';
+    elements.messageField.value = data.message || '';
+    updateGuestDetailsRequirements(elements);
+    elements.submitRsvpButton.textContent = 'Update RSVP';
+}
+
+async function handleRsvpSubmit(event, state, elements) {
+    event.preventDefault();
+
+    if (!state.currentUser || !state.currentUser.emailVerified) {
+        setBanner(elements, 'You must be signed in with a verified email address before saving an RSVP.', 'error');
+        return;
     }
 
-    // Show/hide additional fields based on attendance selection
-    attendingRadios.forEach(radio => {
-        radio.addEventListener('change', function() {
-            updateAttendingFields(this.value === 'yes');
-        });
-    });
+    const attendingSelection = document.querySelector('input[name="attending"]:checked');
+    if (!attendingSelection) {
+        setBanner(elements, 'Please tell us whether you will be attending.', 'error');
+        return;
+    }
 
-    guestCountField.addEventListener('change', updateGuestDetailsRequirements);
-    childrenCountField.addEventListener('change', updateGuestDetailsRequirements);
-    accommodationInterestFields.forEach(field => {
-        field.addEventListener('change', updateAccommodationRequirements);
-    });
+    const isAttending = attendingSelection.value === 'yes';
+    const fullName = `${elements.firstName.value.trim()} ${elements.lastName.value.trim()}`.trim();
+    const isUpdate = Boolean(state.existingRsvp);
+    const restore = setBusy(elements.submitRsvpButton, isUpdate ? 'Updating RSVP...' : 'Saving RSVP...');
 
-    // Smooth scroll for RSVP button
-    document.querySelector('.cta-button').addEventListener('click', function(e) {
-        e.preventDefault();
-        const rsvpSection = document.getElementById('rsvp');
-        rsvpSection.scrollIntoView({ behavior: 'smooth' });
-    });
-
-    // Form submission handling
-    form.addEventListener('submit', function(e) {
-        e.preventDefault();
-
-        // Collect form data
-        const formData = {
-            firstName: document.getElementById('firstName').value,
-            lastName: document.getElementById('lastName').value,
-            email: document.getElementById('email').value,
-            phone: document.getElementById('phone').value,
-            attending: document.querySelector('input[name="attending"]:checked').value,
-            guestCount: guestCountField.value,
-            childrenCount: childrenCountField.value,
-            guestNames: guestNamesField.value,
-            childrenAges: childrenAgesField.value,
-            dietary: dietaryField.value,
-            accessibility: accessibilityField.value,
-            accommodationInterest: (document.querySelector('input[name="accommodationInterest"]:checked') || {}).value || '',
-            accommodationCount: accommodationCountField.value,
-            songRequest: songRequestField.value,
-            message: document.getElementById('message').value,
-            timestamp: new Date().toISOString()
-        };
-
-        // Log to console (in production, this would be sent to a server)
-        console.log('RSVP Submission:', formData);
-
-        // Store in localStorage for demonstration purposes
-        const existingRSVPs = JSON.parse(localStorage.getItem('rsvps') || '[]');
-        existingRSVPs.push(formData);
-        localStorage.setItem('rsvps', JSON.stringify(existingRSVPs));
-
-        // Hide form and show success message
-        form.style.display = 'none';
-        successMessage.style.display = 'block';
-
-        // Scroll to success message
-        successMessage.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-        // Optional: Reset form after a delay if you want to allow multiple submissions
-        setTimeout(() => {
-            form.reset();
-        }, 1000);
-    });
-
-    // Add animation on scroll
-    const observerOptions = {
-        threshold: 0.1,
-        rootMargin: '0px 0px -50px 0px'
+    const payload = {
+        uid: state.currentUser.uid,
+        displayName: state.currentUser.displayName || fullName,
+        firstName: elements.firstName.value.trim(),
+        lastName: elements.lastName.value.trim(),
+        email: state.currentUser.email || elements.email.value.trim(),
+        phone: elements.phone.value.trim(),
+        attending: attendingSelection.value,
+        guestCount: isAttending ? elements.guestCountField.value : '0',
+        childrenCount: isAttending ? elements.childrenCountField.value : '0',
+        guestNames: isAttending ? elements.guestNamesField.value.trim() : '',
+        childrenAges: isAttending ? elements.childrenAgesField.value.trim() : '',
+        dietary: isAttending ? elements.dietaryField.value.trim() : '',
+        accessibility: isAttending ? elements.accessibilityField.value.trim() : '',
+        accommodationInterest: isAttending
+            ? (document.querySelector('input[name="accommodationInterest"]:checked') || {}).value || ''
+            : '',
+        accommodationCount: isAttending ? elements.accommodationCountField.value : '',
+        songRequest: isAttending ? elements.songRequestField.value.trim() : '',
+        message: elements.messageField.value.trim(),
+        submittedAt: state.existingRsvp?.submittedAt || serverTimestamp(),
+        updatedAt: serverTimestamp()
     };
 
-    const observer = new IntersectionObserver(function(entries) {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                entry.target.style.opacity = '1';
-                entry.target.style.transform = 'translateY(0)';
-            }
-        });
-    }, observerOptions);
+    try {
+        await setDoc(doc(state.db, 'rsvps', state.currentUser.uid), payload, { merge: true });
+        await loadGuestRsvp(state, elements, state.currentUser);
+        showSuccessMessage(
+            elements,
+            isUpdate
+                ? 'Your RSVP has been updated.'
+                : 'Your RSVP has been received. We can\'t wait to celebrate with you.'
+        );
+        setBanner(elements, isUpdate ? 'RSVP updated successfully.' : 'RSVP saved successfully.', 'success');
+    } catch (error) {
+        setBanner(elements, friendlyErrorMessage(error), 'error');
+    } finally {
+        restore();
+    }
+}
 
-    // Observe sections for animation
-    document.querySelectorAll('.story, .details, .rsvp').forEach(section => {
+function bindFormVisibilityHandlers(elements) {
+    elements.attendingRadios.forEach((radio) => {
+        radio.addEventListener('change', () => {
+            updateAttendingFields(radio.value === 'yes', elements);
+        });
+    });
+
+    elements.guestCountField.addEventListener('change', () => updateGuestDetailsRequirements(elements));
+    elements.childrenCountField.addEventListener('change', () => updateGuestDetailsRequirements(elements));
+    elements.accommodationInterestFields.forEach((field) => {
+        field.addEventListener('change', () => updateAccommodationRequirements(elements));
+    });
+}
+
+function setGroupVisibility(group, isVisible) {
+    group.classList.toggle('hidden', !isVisible);
+}
+
+function updateGuestDetailsRequirements(elements) {
+    const guestCount = parseInt(elements.guestCountField.value, 10);
+    const childrenCount = parseInt(elements.childrenCountField.value, 10);
+    const hasAdditionalGuests = guestCount > 1 || childrenCount > 0;
+
+    elements.guestNamesField.required = hasAdditionalGuests;
+    elements.childrenAgesField.required = childrenCount > 0;
+}
+
+function updateAccommodationRequirements(elements) {
+    const selectedAccommodation = document.querySelector('input[name="accommodationInterest"]:checked');
+    const mayNeedAccommodation = selectedAccommodation &&
+        (selectedAccommodation.value === 'yes' || selectedAccommodation.value === 'maybe');
+
+    setGroupVisibility(elements.accommodationCountGroup, Boolean(mayNeedAccommodation));
+    elements.accommodationCountField.required = Boolean(mayNeedAccommodation);
+
+    if (!mayNeedAccommodation) {
+        elements.accommodationCountField.value = '';
+    }
+}
+
+function resetAttendingDetails(elements) {
+    elements.guestCountField.value = '1';
+    elements.childrenCountField.value = '0';
+    elements.guestNamesField.value = '';
+    elements.childrenAgesField.value = '';
+    elements.dietaryField.value = '';
+    elements.accessibilityField.value = '';
+    elements.accommodationCountField.value = '';
+    elements.songRequestField.value = '';
+    clearRadioGroup(elements.accommodationInterestFields);
+}
+
+function updateAttendingFields(isAttending, elements) {
+    setGroupVisibility(elements.guestCountGroup, isAttending);
+    setGroupVisibility(elements.childrenGroup, isAttending);
+    setGroupVisibility(elements.guestNamesGroup, isAttending);
+    setGroupVisibility(elements.childrenAgesGroup, isAttending);
+    setGroupVisibility(elements.dietaryGroup, isAttending);
+    setGroupVisibility(elements.accessibilityGroup, isAttending);
+    setGroupVisibility(elements.accommodationInterestGroup, isAttending);
+    setGroupVisibility(elements.songRequestGroup, isAttending);
+
+    elements.guestCountField.required = isAttending;
+    elements.dietaryField.required = isAttending;
+    elements.accommodationInterestFields.forEach((field) => {
+        field.required = isAttending;
+    });
+
+    if (isAttending) {
+        updateGuestDetailsRequirements(elements);
+        updateAccommodationRequirements(elements);
+        return;
+    }
+
+    elements.guestNamesField.required = false;
+    elements.childrenAgesField.required = false;
+    elements.accommodationCountField.required = false;
+    setGroupVisibility(elements.accommodationCountGroup, false);
+    resetAttendingDetails(elements);
+}
+
+function prefillIdentityFields(elements, user) {
+    const { firstName, lastName } = splitName('', '', user?.displayName || '');
+
+    if (!elements.firstName.value) {
+        elements.firstName.value = firstName;
+    }
+
+    if (!elements.lastName.value) {
+        elements.lastName.value = lastName;
+    }
+
+    elements.email.value = user?.email || '';
+    elements.email.readOnly = true;
+}
+
+function splitName(firstName, lastName, displayName) {
+    if (firstName || lastName) {
+        return { firstName: firstName || '', lastName: lastName || '' };
+    }
+
+    const trimmed = (displayName || '').trim();
+    if (!trimmed) {
+        return { firstName: '', lastName: '' };
+    }
+
+    const parts = trimmed.split(/\s+/);
+    if (parts.length === 1) {
+        return { firstName: parts[0], lastName: '' };
+    }
+
+    return {
+        firstName: parts[0],
+        lastName: parts.slice(1).join(' ')
+    };
+}
+
+function setRadioValue(fields, value) {
+    fields.forEach((field) => {
+        field.checked = field.value === value;
+    });
+}
+
+function clearRadioGroup(fields) {
+    fields.forEach((field) => {
+        field.checked = false;
+    });
+}
+
+function attachStaticInteractions() {
+    const ctaButton = document.querySelector('.cta-button');
+    if (ctaButton) {
+        ctaButton.addEventListener('click', (event) => {
+            event.preventDefault();
+            document.getElementById('rsvp').scrollIntoView({ behavior: 'smooth' });
+        });
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+            if (!entry.isIntersecting) {
+                return;
+            }
+
+            entry.target.style.opacity = '1';
+            entry.target.style.transform = 'translateY(0)';
+        });
+    }, {
+        threshold: 0.1,
+        rootMargin: '0px 0px -50px 0px'
+    });
+
+    document.querySelectorAll('.story, .details, .rsvp').forEach((section) => {
         section.style.opacity = '0';
         section.style.transform = 'translateY(30px)';
         section.style.transition = 'opacity 0.8s ease, transform 0.8s ease';
         observer.observe(section);
     });
-
-    const selectedAttending = document.querySelector('input[name="attending"]:checked');
-    updateAttendingFields(selectedAttending ? selectedAttending.value === 'yes' : false);
-});
-
-// View stored RSVPs (for demonstration - can be accessed via browser console)
-function viewRSVPs() {
-    const rsvps = JSON.parse(localStorage.getItem('rsvps') || '[]');
-    console.log('Total RSVPs:', rsvps.length);
-    console.table(rsvps);
-    return rsvps;
 }
 
-// Clear all RSVPs (for demonstration - can be accessed via browser console)
-function clearRSVPs() {
-    localStorage.removeItem('rsvps');
-    console.log('All RSVPs cleared');
+function subscribeToAdminRsvps(state, elements) {
+    clearAdminSubscription(state);
+
+    const rsvpQuery = query(collection(state.db, 'rsvps'), orderBy('updatedAt', 'desc'));
+
+    state.adminUnsubscribe = onSnapshot(rsvpQuery, (snapshot) => {
+        const entries = snapshot.docs.map((entry) => ({
+            id: entry.id,
+            ...entry.data()
+        }));
+
+        renderAdminEntries(entries, elements);
+    }, (error) => {
+        setBanner(elements, friendlyErrorMessage(error), 'error');
+    });
 }
 
-console.log('Wedding Website loaded! To view RSVPs, type: viewRSVPs()');
+function clearAdminSubscription(state) {
+    if (typeof state.adminUnsubscribe === 'function') {
+        state.adminUnsubscribe();
+    }
+
+    state.adminUnsubscribe = null;
+}
+
+function renderAdminEntries(entries, elements) {
+    elements.adminRsvpCount.textContent = String(entries.length);
+
+    if (!entries.length) {
+        elements.adminEmptyState.classList.remove('hidden');
+        elements.adminList.innerHTML = '';
+        return;
+    }
+
+    elements.adminEmptyState.classList.add('hidden');
+    elements.adminList.innerHTML = entries.map((entry) => buildAdminEntry(entry)).join('');
+}
+
+function buildAdminEntry(entry) {
+    const guestCount = entry.guestCount && entry.guestCount !== '0' ? entry.guestCount : '--';
+    const childrenCount = entry.childrenCount && entry.childrenCount !== '0' ? entry.childrenCount : '0';
+    const submittedLabel = entry.updatedAt ? 'Updated' : 'Submitted';
+    const status = entry.attending === 'yes' ? 'Attending' : 'Declines';
+    const household = `${entry.firstName || ''} ${entry.lastName || ''}`.trim() || entry.displayName || entry.email || 'Unnamed guest';
+
+    return `
+        <article class="admin-entry">
+            <div class="admin-entry-header">
+                <div>
+                    <span class="detail-badge">${escapeHtml(status)}</span>
+                    <h4>${escapeHtml(household)}</h4>
+                </div>
+                <div class="admin-entry-meta">
+                    <div>${escapeHtml(entry.email || 'No email provided')}</div>
+                    <div>${submittedLabel} ${escapeHtml(formatTimestamp(entry.updatedAt || entry.submittedAt))}</div>
+                </div>
+            </div>
+            <dl class="admin-entry-grid">
+                ${detailPair('Phone', entry.phone)}
+                ${detailPair('Adults', guestCount)}
+                ${detailPair('Children', childrenCount)}
+                ${detailPair('Additional Guests', entry.guestNames)}
+                ${detailPair('Children\'s Ages', entry.childrenAges)}
+                ${detailPair('Dietary Needs', entry.dietary)}
+                ${detailPair('Accessibility', entry.accessibility)}
+                ${detailPair('Accommodation Interest', entry.accommodationInterest)}
+                ${detailPair('Accommodation Count', entry.accommodationCount)}
+                ${detailPair('Song Request', entry.songRequest)}
+                ${detailPair('Message', entry.message)}
+            </dl>
+        </article>
+    `;
+}
+
+function detailPair(label, value) {
+    const rendered = escapeHtml(normalizeValue(value));
+    return `
+        <div class="detail-pair">
+            <dt>${escapeHtml(label)}</dt>
+            <dd>${rendered}</dd>
+        </div>
+    `;
+}
+
+function normalizeValue(value) {
+    if (value === undefined || value === null) {
+        return '--';
+    }
+
+    const rendered = String(value).trim();
+    return rendered || '--';
+}
+
+function formatTimestamp(value) {
+    if (!value) {
+        return 'just now';
+    }
+
+    if (typeof value.toDate === 'function') {
+        return value.toDate().toLocaleString('en-GB', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+        return 'just now';
+    }
+
+    return parsed.toLocaleString('en-GB', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+function showSuccessMessage(elements, message) {
+    elements.successMessageText.textContent = message;
+    elements.successMessage.classList.remove('hidden');
+    elements.successMessage.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function hideSuccessMessage(elements) {
+    elements.successMessage.classList.add('hidden');
+}
+
+function setBusy(button, busyLabel) {
+    const originalLabel = button.textContent;
+    button.disabled = true;
+    button.textContent = busyLabel;
+
+    return () => {
+        button.disabled = false;
+        button.textContent = originalLabel;
+    };
+}
+
+function setBanner(elements, message, variant = 'info') {
+    elements.authMessage.textContent = message;
+    elements.authMessage.classList.remove('hidden', 'info-banner-error', 'info-banner-success');
+
+    if (variant === 'error') {
+        elements.authMessage.classList.add('info-banner-error');
+        return;
+    }
+
+    if (variant === 'success') {
+        elements.authMessage.classList.add('info-banner-success');
+    }
+}
+
+function friendlyErrorMessage(error) {
+    const errorCode = error?.code || '';
+
+    switch (errorCode) {
+    case 'auth/email-already-in-use':
+        return 'That email address already has an account. Try signing in instead.';
+    case 'auth/invalid-email':
+        return 'Please enter a valid email address.';
+    case 'auth/invalid-credential':
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+        return 'Those sign-in details do not match our records.';
+    case 'auth/weak-password':
+        return 'Please choose a stronger password.';
+    case 'auth/too-many-requests':
+        return 'Too many attempts have been made. Please wait a little and try again.';
+    case 'permission-denied':
+        return 'Access was denied by the database rules. Check the Firestore rules and your admin setup.';
+    default:
+        return error?.message || 'Something went wrong. Please try again.';
+    }
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+}

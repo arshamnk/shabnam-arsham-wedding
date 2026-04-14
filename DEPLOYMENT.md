@@ -1,69 +1,56 @@
 # Deployment
 
-This site is deployed with GitHub Pages.
+This site is still deployed with GitHub Pages:
 
 - Live URL: `https://arshamnk.github.io/shabnam-arsham-wedding/`
 - Repository: `https://github.com/arshamnk/shabnam-arsham-wedding`
-- GitHub Pages source: `main` branch, repository root (`/`)
+- Pages source: `main` branch, repository root (`/`)
 
-## How To Deploy Changes
+## Before You Push
 
-1. Open the repo locally:
+The site now depends on Firebase Auth and Firestore.
 
-   ```bash
-   cd /home/arshamnk/Dropbox/Wedding/shabnam-arsham-wedding
-   ```
+Make sure you have already:
 
-2. Check what changed:
+1. Filled in [app-config.js](/home/arshamnk/Dropbox/Wedding/shabnam-arsham-wedding/app-config.js).
+2. Enabled Email/Password auth in Firebase.
+3. Added `arshamnk.github.io` as an authorized domain.
+4. Deployed [firestore.rules](/home/arshamnk/Dropbox/Wedding/shabnam-arsham-wedding/firestore.rules).
+5. Either listed your admin email in `appConfig.adminEmails` or created an admin document in the `admins` collection for your verified account.
 
-   ```bash
-   git status --short
-   ```
+## Push Changes
 
-3. Review the diff:
+```bash
+cd /home/arshamnk/Dropbox/Wedding/shabnam-arsham-wedding
+git status --short
+git diff
+git add index.html styles.css script.js app-config.js firestore.rules firebase.json package.json README.md DEPLOYMENT.md
+git commit -m "Add verified guest login and protected RSVP flow"
+git push origin main
+```
 
-   ```bash
-   git diff
-   ```
+GitHub Pages will rebuild automatically after the push.
 
-4. Commit the intended changes:
+## Verify The Deployment
 
-   ```bash
-   git add index.html styles.css script.js
-   git commit -m "Describe the change"
-   ```
-
-   If you changed other files too, include them in the `git add` command.
-
-5. Push to `main`:
-
-   ```bash
-   git push origin main
-   ```
-
-6. GitHub Pages will automatically rebuild the site after the push.
-
-## How To Verify Deployment
-
-Check the latest Pages build with:
+Check the latest Pages build:
 
 ```bash
 gh api repos/arshamnk/shabnam-arsham-wedding/pages/builds/latest
 ```
 
-Look for:
+You want:
 
-- `"status":"built"` to confirm deployment succeeded
-- `"commit":"<sha>"` matching the commit you just pushed
+- `"status":"built"`
+- `"commit":"<sha>"` matching the change you pushed
 
-You can also confirm the Pages configuration with:
+## Quick Live Smoke Test
 
-```bash
-gh api repos/arshamnk/shabnam-arsham-wedding/pages
-```
-
-## Notes
-
-- There is no separate build step at the moment. This is a static site served directly from the repository root.
-- Updating `index.html`, `styles.css`, or `script.js` and pushing to `main` is enough to deploy.
-- The RSVP form currently stores submissions in browser local storage only. Pushing changes does not affect previously saved local browser data on other devices because there is no backend.
+1. Open the site.
+2. Create a guest account.
+3. Confirm the verification email arrives.
+4. Click the email link, return to the site, and use `Refresh Access`.
+5. Confirm:
+   - non-admin users see the RSVP form and protected bank details
+   - admin users see the RSVP dashboard
+   - an RSVP saved from one browser appears in the admin dashboard from another

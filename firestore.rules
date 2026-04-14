@@ -1,0 +1,34 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedInAndVerified() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isCurrentUser(userId) {
+      return signedInAndVerified() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return signedInAndVerified() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    match /admins/{userId} {
+      allow get: if isCurrentUser(userId);
+      allow list: if false;
+      allow create, update, delete: if false;
+    }
+
+    match /rsvps/{userId} {
+      allow get: if isAdmin() || isCurrentUser(userId);
+      allow list: if isAdmin();
+
+      allow create, update: if isCurrentUser(userId)
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == request.auth.token.email;
+
+      allow delete: if false;
+    }
+  }
+}
