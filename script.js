@@ -80,6 +80,7 @@ function getElements() {
         authMessage: document.getElementById('authMessage'),
         authStatusBar: document.getElementById('authStatusBar'),
         authStatusText: document.getElementById('authStatusText'),
+        heroGuestLoginButton: document.getElementById('heroGuestLoginButton'),
         authView: document.getElementById('authView'),
         guestView: document.getElementById('guestView'),
         adminView: document.getElementById('adminView'),
@@ -190,6 +191,7 @@ async function syncSession(user, state, elements) {
         state.adminViewMode = 'summary';
         renderAdminEntries(state.adminEntries, state, elements);
         elements.authStatusBar.classList.add('hidden');
+        elements.heroGuestLoginButton.classList.remove('hidden');
         elements.authView.classList.remove('hidden');
         elements.verificationGate.classList.add('hidden');
         elements.guestView.classList.add('hidden');
@@ -201,6 +203,7 @@ async function syncSession(user, state, elements) {
     }
 
     elements.authStatusBar.classList.remove('hidden');
+    elements.heroGuestLoginButton.classList.add('hidden');
     elements.authStatusText.textContent = user.emailVerified
         ? `Signed in as ${user.email}`
         : `Signed in as ${user.email}. Email verification is still required.`;
@@ -902,7 +905,7 @@ function clearRadioGroup(fields) {
 }
 
 function attachStaticInteractions(elements) {
-    const ctaButton = document.querySelector('.cta-button');
+    const ctaButton = elements.heroGuestLoginButton;
     if (ctaButton) {
         ctaButton.addEventListener('click', (event) => {
             event.preventDefault();
