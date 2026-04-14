@@ -50,6 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
         bankDetailsVisible: false
     };
 
+    setPrivateSectionVisibility(false, elements);
     attachStaticInteractions(elements);
     bindFormVisibilityHandlers(elements);
     bindAuthTabs(elements);
@@ -77,6 +78,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function getElements() {
     return {
+        rsvpSection: document.getElementById('rsvp'),
+        privateSections: Array.from(document.querySelectorAll('[data-private-section]')),
         authMessage: document.getElementById('authMessage'),
         authStatusBar: document.getElementById('authStatusBar'),
         authStatusText: document.getElementById('authStatusText'),
@@ -166,6 +169,13 @@ function hasFirebaseConfig(firebaseConfig) {
     });
 }
 
+function setPrivateSectionVisibility(isVisible, elements) {
+    document.body.classList.toggle('app-shell-locked', !isVisible);
+    (elements.privateSections || []).forEach((section) => {
+        section.classList.toggle('hidden', !isVisible);
+    });
+}
+
 function initializeFirebase(state, elements) {
     const firebaseApp = initializeApp(appConfig.firebase);
     state.auth = getAuth(firebaseApp);
@@ -184,6 +194,7 @@ async function syncSession(user, state, elements) {
     hideSuccessMessage(elements);
 
     if (!user) {
+        setPrivateSectionVisibility(false, elements);
         state.isAdmin = false;
         state.existingRsvp = null;
         state.adminEntries = [];
@@ -202,7 +213,7 @@ async function syncSession(user, state, elements) {
         elements.openDashboardButton.classList.add('hidden');
         resetRsvpForm(elements, null);
         switchAuthTab('sign-in', elements);
-        return;
+        return 'logged-out';
     }
 
     elements.authStatusBar.classList.remove('hidden');
@@ -212,6 +223,7 @@ async function syncSession(user, state, elements) {
         : `Signed in as ${user.email}. Email verification is still required.`;
 
     if (!user.emailVerified) {
+        setPrivateSectionVisibility(false, elements);
         elements.authView.classList.add('hidden');
         elements.verificationGate.classList.remove('hidden');
         elements.guestView.classList.add('hidden');
@@ -220,7 +232,7 @@ async function syncSession(user, state, elements) {
         elements.openDashboardButton.classList.add('hidden');
         elements.verificationEmail.textContent = user.email || '';
         setBanner(elements, 'Verify your email before protected content, bank details, and RSVP submissions become available. Please check your spam folder as well as your inbox.', 'info');
-        return;
+        return 'verification-required';
     }
 
     elements.verificationGate.classList.add('hidden');
@@ -228,14 +240,18 @@ async function syncSession(user, state, elements) {
     try {
         const blockedSnapshot = await getDoc(doc(state.db, 'blockedUsers', user.uid));
         if (blockedSnapshot.exists()) {
+            setPrivateSectionVisibility(false, elements);
             await signOut(state.auth);
             setBanner(elements, 'Your access to this site has been removed. Please contact the couple if this seems incorrect.', 'error');
-            return;
+            return 'blocked';
         }
     } catch (error) {
+        setPrivateSectionVisibility(false, elements);
         setBanner(elements, friendlyErrorMessage(error, 'session'), 'error');
-        return;
+        return 'error';
     }
+
+    setPrivateSectionVisibility(true, elements);
 
     try {
         await ensureVerifiedProfile(user, state);
@@ -246,9 +262,12 @@ async function syncSession(user, state, elements) {
     try {
         state.isAdmin = await isAdminUser(user, state);
     } catch (error) {
-        state.isAdmin = false;
-        setBanner(elements, friendlyErrorMessage(error, 'session'), 'error');
-        return;
+        state.isAdmin = isBootstrapAdminEmail(user.email || '');
+        if (state.isAdmin) {
+            setBanner(elements, 'Admin access is available, but some account checks could not be refreshed. If anything looks stale, publish the latest Firestore rules in Firebase.', 'info');
+        } else {
+            setBanner(elements, 'Your account is verified, but we could not fully refresh your access checks. Guest access is still available.', 'info');
+        }
     }
 
     if (state.isAdmin) {
@@ -262,7 +281,7 @@ async function syncSession(user, state, elements) {
         renderAdminEntries(state.adminEntries, state, elements);
         subscribeToAdminData(state, elements);
         openAdminDashboard('summary', state, elements);
-        return;
+        return 'admin';
     }
 
     elements.authStatusText.textContent = `Signed in as ${user.email}`;
@@ -274,6 +293,7 @@ async function syncSession(user, state, elements) {
     setBanner(elements, 'You are signed in with a verified email address. The protected RSVP form and wedding fund details are now visible.', 'success');
     await loadGuestRsvp(state, elements, user);
     openGuestArea(elements);
+    return 'guest';
 }
 
 async function isAdminUser(user, state) {
@@ -395,9 +415,9 @@ async function handleSignIn(event, state, elements) {
     const restore = setBusy(elements.signInForm.querySelector('button[type="submit"]'), 'Signing In...');
 
     try {
-        await signInWithEmailAndPassword(state.auth, email, password);
+        const credential = await signInWithEmailAndPassword(state.auth, email, password);
         elements.signInPassword.value = '';
-        setBanner(elements, 'Signed in successfully.', 'success');
+        await syncSession(credential.user, state, elements);
     } catch (error) {
         setBanner(elements, friendlyErrorMessage(error), 'error');
     } finally {
@@ -442,6 +462,7 @@ async function handleSignUp(event, state, elements) {
         await sendEmailVerification(credential.user);
         elements.signUpPassword.value = '';
         elements.signUpPasswordConfirm.value = '';
+        await syncSession(credential.user, state, elements);
         setBanner(elements, 'Account created. Please check your inbox and spam folder, then click the verification link before continuing.', 'success');
     } catch (error) {
         setBanner(elements, friendlyErrorMessage(error), 'error');
@@ -478,11 +499,11 @@ async function refreshSession(state, elements) {
     try {
         await state.currentUser.reload();
         await state.currentUser.getIdToken(true);
-        await syncSession(state.auth.currentUser, state, elements);
+        const status = await syncSession(state.auth.currentUser, state, elements);
 
-        if (state.auth.currentUser?.emailVerified) {
+        if (status === 'guest' || status === 'admin') {
             setBanner(elements, 'Email verification confirmed. Access refreshed.', 'success');
-        } else {
+        } else if (status === 'verification-required') {
             setBanner(elements, 'The account is still not showing as verified. If you just clicked the email link, wait a moment and try again.', 'info');
         }
     } catch (error) {
@@ -503,6 +524,10 @@ async function handleSignOut(state, elements) {
         state.bankDetailsVisible = false;
         updateBankDetailsVisibility(state, elements);
         setBanner(elements, 'You have been signed out.', 'success');
+        elements.rsvpSection.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+        });
     } catch (error) {
         setBanner(elements, friendlyErrorMessage(error), 'error');
     }
