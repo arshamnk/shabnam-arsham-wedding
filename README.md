@@ -6,6 +6,7 @@ This is a static wedding website for GitHub Pages with:
 - protected wedding-fund bank details
 - a shared RSVP form stored in Firestore
 - an admin dashboard for reviewing all RSVP submissions
+- admin-only donation tracking and RSVP deletion controls
 
 ## Local Testing
 
@@ -54,6 +55,7 @@ The rules do three things:
 - only verified-email users can save an RSVP
 - normal guests can only read their own RSVP
 - admin users can read every RSVP
+- admin users can update the recorded donation amount and delete an RSVP
 
 ## Admin Setup
 

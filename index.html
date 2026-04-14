@@ -83,7 +83,7 @@
                 </div>
                 <div class="status-actions">
                     <button type="button" id="refreshSessionButton" class="ghost-button">Refresh Access</button>
-                    <button type="button" id="signOutButton" class="ghost-button">Log Out</button>
+                    <button type="button" id="signOutButton" class="ghost-button" data-action="sign-out">Log Out</button>
                 </div>
             </div>
 
@@ -154,6 +154,15 @@
             </div>
 
             <div id="guestView" class="protected-shell hidden">
+                <div class="protected-shell-header">
+                    <div>
+                        <p class="panel-eyebrow">Verified Guest Area</p>
+                        <h3 class="panel-title">RSVP and Wedding Fund</h3>
+                        <p class="panel-intro">Thank you for logging in. The RSVP form and protected payment details are shown below for verified guests only.</p>
+                    </div>
+                    <button type="button" class="ghost-button" data-action="sign-out">Log Out</button>
+                </div>
+
                 <div class="rsvp-overview-grid protected-overview-grid">
                     <article class="rsvp-card rsvp-card-emphasis">
                         <p class="card-eyebrow">Protected Access</p>
@@ -190,6 +199,14 @@
                                     <dt>Account Name</dt>
                                     <dd id="fundAccountName"></dd>
                                 </div>
+                            </dl>
+
+                            <div class="bank-reveal-panel">
+                                <p class="form-help bank-reveal-copy">Click below to show the sort code and account number. These details are visible only to verified guests, and we would be grateful if you kept them within your invited household.</p>
+                                <button type="button" id="toggleBankDetailsButton" class="ghost-button">Click To Show Bank Details</button>
+                            </div>
+
+                            <dl id="sensitiveBankDetails" class="bank-details-list bank-sensitive-details hidden">
                                 <div class="bank-detail-row">
                                     <dt>Sort Code</dt>
                                     <dd id="fundSortCode"></dd>
@@ -351,17 +368,52 @@
                         <h3 class="panel-title">RSVP Submissions</h3>
                         <p class="panel-intro">Verified admin accounts can review the protected guest responses below.</p>
                     </div>
-                    <div class="admin-stat">
-                        <span id="adminRsvpCount" class="admin-stat-number">0</span>
-                        <span class="admin-stat-label">Responses</span>
+                    <div class="admin-panel-actions">
+                        <div class="admin-stat">
+                            <span id="adminRsvpCount" class="admin-stat-number">0</span>
+                            <span class="admin-stat-label">Responses</span>
+                        </div>
+                        <button type="button" class="ghost-button" data-action="sign-out">Log Out</button>
                     </div>
                 </div>
+
+                <div class="admin-view-switcher" role="tablist" aria-label="Admin RSVP views">
+                    <button type="button" class="admin-view-button admin-view-button-active" data-admin-view="summary" aria-selected="true">Summary</button>
+                    <button type="button" class="admin-view-button" data-admin-view="responses" aria-selected="false">Responses</button>
+                    <button type="button" class="admin-view-button" data-admin-view="table" aria-selected="false">Table</button>
+                </div>
+
+                <section id="adminSummaryView" class="admin-content-view">
+                    <div id="adminSummaryGrid" class="admin-summary-grid"></div>
+                    <div id="adminSummaryHighlights" class="admin-summary-highlights"></div>
+                </section>
 
                 <div id="adminEmptyState" class="empty-state">
                     <p>No RSVP submissions have been saved yet.</p>
                 </div>
 
-                <div id="adminList" class="admin-list"></div>
+                <section id="adminResponsesView" class="admin-content-view hidden">
+                    <div id="adminList" class="admin-list"></div>
+                </section>
+
+                <section id="adminTableView" class="admin-content-view hidden">
+                    <div class="admin-table-wrapper">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Guest</th>
+                                    <th>Status</th>
+                                    <th>Party</th>
+                                    <th>Accommodation</th>
+                                    <th>Donation</th>
+                                    <th>Updated</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="adminTableBody"></tbody>
+                        </table>
+                    </div>
+                </section>
             </section>
         </div>
     </section>

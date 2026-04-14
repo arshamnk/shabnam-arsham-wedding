@@ -11,6 +11,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
 import {
     collection,
+    deleteDoc,
     doc,
     getDoc,
     getFirestore,
@@ -18,7 +19,8 @@ import {
     orderBy,
     query,
     serverTimestamp,
-    setDoc
+    setDoc,
+    updateDoc
 } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
 
 const REQUIRED_FIREBASE_KEYS = [
@@ -36,21 +38,25 @@ document.addEventListener('DOMContentLoaded', () => {
         currentUser: null,
         isAdmin: false,
         adminUnsubscribe: null,
-        existingRsvp: null
+        existingRsvp: null,
+        adminEntries: [],
+        adminViewMode: 'summary',
+        bankDetailsVisible: false
     };
 
     attachStaticInteractions(elements);
     bindFormVisibilityHandlers(elements);
     bindAuthTabs(elements);
-    renderWeddingFundDetails(elements);
+    bindProtectedInteractions(state, elements);
+    renderWeddingFundDetails(state, elements);
     resetRsvpForm(elements, null);
+    renderAdminEntries(state.adminEntries, state, elements);
 
     elements.signInForm.addEventListener('submit', (event) => handleSignIn(event, state, elements));
     elements.signUpForm.addEventListener('submit', (event) => handleSignUp(event, state, elements));
     elements.recheckVerificationButton.addEventListener('click', () => refreshSession(state, elements));
     elements.refreshSessionButton.addEventListener('click', () => refreshSession(state, elements));
     elements.resendVerificationButton.addEventListener('click', () => resendVerification(state, elements));
-    elements.signOutButton.addEventListener('click', () => handleSignOut(state, elements));
     elements.rsvpForm.addEventListener('submit', (event) => handleRsvpSubmit(event, state, elements));
 
     if (!hasFirebaseConfig(appConfig.firebase)) {
@@ -72,6 +78,13 @@ function getElements() {
         guestView: document.getElementById('guestView'),
         adminView: document.getElementById('adminView'),
         adminList: document.getElementById('adminList'),
+        adminTableBody: document.getElementById('adminTableBody'),
+        adminSummaryGrid: document.getElementById('adminSummaryGrid'),
+        adminSummaryHighlights: document.getElementById('adminSummaryHighlights'),
+        adminSummaryView: document.getElementById('adminSummaryView'),
+        adminResponsesView: document.getElementById('adminResponsesView'),
+        adminTableView: document.getElementById('adminTableView'),
+        adminViewButtons: Array.from(document.querySelectorAll('[data-admin-view]')),
         adminEmptyState: document.getElementById('adminEmptyState'),
         adminRsvpCount: document.getElementById('adminRsvpCount'),
         setupNotice: document.getElementById('setupNotice'),
@@ -91,7 +104,9 @@ function getElements() {
         resendVerificationButton: document.getElementById('resendVerificationButton'),
         recheckVerificationButton: document.getElementById('recheckVerificationButton'),
         refreshSessionButton: document.getElementById('refreshSessionButton'),
-        signOutButton: document.getElementById('signOutButton'),
+        signOutButtons: Array.from(document.querySelectorAll('[data-action="sign-out"]')),
+        toggleBankDetailsButton: document.getElementById('toggleBankDetailsButton'),
+        sensitiveBankDetails: document.getElementById('sensitiveBankDetails'),
         rsvpForm: document.getElementById('rsvpForm'),
         submitRsvpButton: document.getElementById('submitRsvpButton'),
         successMessage: document.getElementById('successMessage'),
@@ -149,12 +164,17 @@ function initializeFirebase(state, elements) {
 
 async function syncSession(user, state, elements) {
     state.currentUser = user;
+    state.bankDetailsVisible = false;
+    updateBankDetailsVisibility(state, elements);
     clearAdminSubscription(state);
     hideSuccessMessage(elements);
 
     if (!user) {
         state.isAdmin = false;
         state.existingRsvp = null;
+        state.adminEntries = [];
+        state.adminViewMode = 'summary';
+        renderAdminEntries(state.adminEntries, state, elements);
         elements.authStatusBar.classList.add('hidden');
         elements.authView.classList.remove('hidden');
         elements.verificationGate.classList.add('hidden');
@@ -183,15 +203,7 @@ async function syncSession(user, state, elements) {
     elements.verificationGate.classList.add('hidden');
 
     try {
-        const configuredAdminEmails = (appConfig.adminEmails || []).map((email) => email.trim().toLowerCase());
-        const isConfiguredAdmin = configuredAdminEmails.includes((user.email || '').trim().toLowerCase());
-
-        if (isConfiguredAdmin) {
-            state.isAdmin = true;
-        } else {
-            const adminSnapshot = await getDoc(doc(state.db, 'admins', user.uid));
-            state.isAdmin = adminSnapshot.exists();
-        }
+        state.isAdmin = await isAdminUser(user, state);
     } catch (error) {
         state.isAdmin = false;
         setBanner(elements, friendlyErrorMessage(error), 'error');
@@ -203,6 +215,7 @@ async function syncSession(user, state, elements) {
         elements.guestView.classList.add('hidden');
         elements.adminView.classList.remove('hidden');
         setBanner(elements, 'Verified admin access enabled. RSVP submissions are shown below.', 'success');
+        renderAdminEntries(state.adminEntries, state, elements);
         subscribeToAdminRsvps(state, elements);
         return;
     }
@@ -214,9 +227,59 @@ async function syncSession(user, state, elements) {
     await loadGuestRsvp(state, elements, user);
 }
 
+async function isAdminUser(user, state) {
+    const configuredAdminEmails = (appConfig.adminEmails || []).map((email) => email.trim().toLowerCase());
+    const email = (user.email || '').trim().toLowerCase();
+
+    if (configuredAdminEmails.includes(email)) {
+        return true;
+    }
+
+    const adminSnapshot = await getDoc(doc(state.db, 'admins', user.uid));
+    return adminSnapshot.exists();
+}
+
 function bindAuthTabs(elements) {
     elements.signInTab.addEventListener('click', () => switchAuthTab('sign-in', elements));
     elements.signUpTab.addEventListener('click', () => switchAuthTab('sign-up', elements));
+}
+
+function bindProtectedInteractions(state, elements) {
+    elements.signOutButtons.forEach((button) => {
+        button.addEventListener('click', () => handleSignOut(state, elements));
+    });
+
+    elements.toggleBankDetailsButton.addEventListener('click', () => {
+        state.bankDetailsVisible = !state.bankDetailsVisible;
+        updateBankDetailsVisibility(state, elements);
+    });
+
+    elements.adminViewButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+            state.adminViewMode = button.dataset.adminView || 'summary';
+            applyAdminView(state.adminViewMode, elements);
+        });
+    });
+
+    elements.adminView.addEventListener('submit', (event) => {
+        const donationForm = event.target.closest('[data-donation-form]');
+
+        if (!donationForm) {
+            return;
+        }
+
+        handleAdminDonationSubmit(event, donationForm, state, elements);
+    });
+
+    elements.adminView.addEventListener('click', (event) => {
+        const deleteButton = event.target.closest('[data-delete-rsvp]');
+
+        if (!deleteButton) {
+            return;
+        }
+
+        handleAdminDelete(deleteButton, state, elements);
+    });
 }
 
 function switchAuthTab(tabName, elements) {
@@ -347,13 +410,15 @@ async function handleSignOut(state, elements) {
 
     try {
         await signOut(state.auth);
+        state.bankDetailsVisible = false;
+        updateBankDetailsVisibility(state, elements);
         setBanner(elements, 'You have been signed out.', 'success');
     } catch (error) {
         setBanner(elements, friendlyErrorMessage(error), 'error');
     }
 }
 
-function renderWeddingFundDetails(elements) {
+function renderWeddingFundDetails(state, elements) {
     const fund = appConfig.weddingFund || {};
     const bankName = fund.bankName?.trim() || 'Add bank name in app-config.js';
     const accountName = fund.accountName?.trim() || 'Add account name in app-config.js';
@@ -367,6 +432,14 @@ function renderWeddingFundDetails(elements) {
     elements.fundAccountNumber.textContent = accountNumber;
     elements.fundContactEmail.textContent = contactEmail;
     elements.fundContactEmail.href = `mailto:${contactEmail}`;
+    updateBankDetailsVisibility(state, elements);
+}
+
+function updateBankDetailsVisibility(state, elements) {
+    elements.sensitiveBankDetails.classList.toggle('hidden', !state.bankDetailsVisible);
+    elements.toggleBankDetailsButton.textContent = state.bankDetailsVisible
+        ? 'Hide Protected Bank Details'
+        : 'Click To Show Bank Details';
 }
 
 async function loadGuestRsvp(state, elements, user) {
@@ -478,6 +551,71 @@ async function handleRsvpSubmit(event, state, elements) {
                 : 'Your RSVP has been received. We can\'t wait to celebrate with you.'
         );
         setBanner(elements, isUpdate ? 'RSVP updated successfully.' : 'RSVP saved successfully.', 'success');
+    } catch (error) {
+        setBanner(elements, friendlyErrorMessage(error), 'error');
+    } finally {
+        restore();
+    }
+}
+
+async function handleAdminDonationSubmit(event, donationForm, state, elements) {
+    event.preventDefault();
+
+    if (!state.isAdmin) {
+        setBanner(elements, 'Admin access is required to update donations.', 'error');
+        return;
+    }
+
+    const rsvpId = donationForm.dataset.donationForm;
+    const household = donationForm.dataset.household || 'this RSVP';
+    const input = donationForm.querySelector('input[name="donationAmount"]');
+    const submitButton = donationForm.querySelector('button[type="submit"]');
+    const rawValue = input.value.trim();
+
+    if (rawValue !== '') {
+        const parsed = Number.parseFloat(rawValue);
+
+        if (Number.isNaN(parsed) || parsed < 0) {
+            setBanner(elements, 'Please enter a valid donation amount or leave it blank.', 'error');
+            return;
+        }
+    }
+
+    const donationAmount = rawValue === '' ? null : Number.parseFloat(Number.parseFloat(rawValue).toFixed(2));
+    const restore = setBusy(submitButton, 'Saving...');
+
+    try {
+        await updateDoc(doc(state.db, 'rsvps', rsvpId), {
+            donationAmount,
+            donationUpdatedAt: serverTimestamp()
+        });
+        setBanner(elements, `Saved the recorded donation for ${household}.`, 'success');
+    } catch (error) {
+        setBanner(elements, friendlyErrorMessage(error), 'error');
+    } finally {
+        restore();
+    }
+}
+
+async function handleAdminDelete(deleteButton, state, elements) {
+    if (!state.isAdmin) {
+        setBanner(elements, 'Admin access is required to delete RSVPs.', 'error');
+        return;
+    }
+
+    const rsvpId = deleteButton.dataset.deleteRsvp;
+    const household = deleteButton.dataset.household || 'this RSVP';
+    const confirmed = window.confirm(`Delete the RSVP for ${household}? This cannot be undone.`);
+
+    if (!confirmed) {
+        return;
+    }
+
+    const restore = setBusy(deleteButton, 'Deleting...');
+
+    try {
+        await deleteDoc(doc(state.db, 'rsvps', rsvpId));
+        setBanner(elements, `Deleted the RSVP for ${household}.`, 'success');
     } catch (error) {
         setBanner(elements, friendlyErrorMessage(error), 'error');
     } finally {
@@ -614,7 +752,7 @@ function clearRadioGroup(fields) {
     });
 }
 
-function attachStaticInteractions() {
+function attachStaticInteractions(elements) {
     const ctaButton = document.querySelector('.cta-button');
     if (ctaButton) {
         ctaButton.addEventListener('click', (event) => {
@@ -651,12 +789,12 @@ function subscribeToAdminRsvps(state, elements) {
     const rsvpQuery = query(collection(state.db, 'rsvps'), orderBy('updatedAt', 'desc'));
 
     state.adminUnsubscribe = onSnapshot(rsvpQuery, (snapshot) => {
-        const entries = snapshot.docs.map((entry) => ({
+        state.adminEntries = snapshot.docs.map((entry) => ({
             id: entry.id,
             ...entry.data()
         }));
 
-        renderAdminEntries(entries, elements);
+        renderAdminEntries(state.adminEntries, state, elements);
     }, (error) => {
         setBanner(elements, friendlyErrorMessage(error), 'error');
     });
@@ -670,25 +808,112 @@ function clearAdminSubscription(state) {
     state.adminUnsubscribe = null;
 }
 
-function renderAdminEntries(entries, elements) {
+function renderAdminEntries(entries, state, elements) {
     elements.adminRsvpCount.textContent = String(entries.length);
+    renderAdminSummary(entries, elements);
+    elements.adminList.innerHTML = entries.map((entry) => buildAdminCard(entry)).join('');
+    elements.adminTableBody.innerHTML = entries.map((entry) => buildAdminTableRow(entry)).join('');
 
     if (!entries.length) {
         elements.adminEmptyState.classList.remove('hidden');
-        elements.adminList.innerHTML = '';
-        return;
+    } else {
+        elements.adminEmptyState.classList.add('hidden');
     }
 
-    elements.adminEmptyState.classList.add('hidden');
-    elements.adminList.innerHTML = entries.map((entry) => buildAdminEntry(entry)).join('');
+    applyAdminView(state.adminViewMode, elements);
 }
 
-function buildAdminEntry(entry) {
+function renderAdminSummary(entries, elements) {
+    const attendingEntries = entries.filter((entry) => entry.attending === 'yes');
+    const declineEntries = entries.filter((entry) => entry.attending === 'no');
+    const accommodationEntries = attendingEntries.filter((entry) => ['yes', 'maybe'].includes((entry.accommodationInterest || '').toLowerCase()));
+    const guestsExpected = attendingEntries.reduce((sum, entry) => sum + getPartySize(entry), 0);
+    const donationEntries = entries.filter((entry) => getDonationNumber(entry.donationAmount) !== null);
+    const totalDonations = donationEntries.reduce((sum, entry) => sum + (getDonationNumber(entry.donationAmount) || 0), 0);
+    const latestEntry = entries[0] || null;
+
+    elements.adminSummaryGrid.innerHTML = [
+        buildSummaryCard('Total Responses', entries.length, 'Households with a saved RSVP on file.'),
+        buildSummaryCard('Attending', attendingEntries.length, 'Households currently marked as attending.'),
+        buildSummaryCard('Declines', declineEntries.length, 'Households that have regretfully declined.'),
+        buildSummaryCard('Guests Expected', guestsExpected, 'Adults and children expected based on accepted RSVPs.'),
+        buildSummaryCard('Accommodation Interest', accommodationEntries.length, 'Households that may want college rooms.'),
+        buildSummaryCard('Recorded Gifts', formatCurrency(totalDonations), donationEntries.length ? `${donationEntries.length} households have a recorded donation amount.` : 'No donation amounts have been entered yet.')
+    ].join('');
+
+    elements.adminSummaryHighlights.innerHTML = [
+        buildSummaryHighlight(
+            'Attendance Snapshot',
+            [
+                { label: 'Accepted households', value: attendingEntries.length },
+                { label: 'Declined households', value: declineEntries.length },
+                { label: 'College stay interest', value: accommodationEntries.length }
+            ]
+        ),
+        buildSummaryHighlight(
+            'Latest Activity',
+            latestEntry
+                ? [
+                    { label: 'Most recent response', value: buildHouseholdName(latestEntry) },
+                    { label: 'Last updated', value: formatTimestamp(latestEntry.updatedAt || latestEntry.submittedAt) },
+                    { label: 'Recorded gift total', value: formatCurrency(totalDonations) }
+                ]
+                : [
+                    { label: 'Most recent response', value: '--' },
+                    { label: 'Last updated', value: '--' },
+                    { label: 'Recorded gift total', value: formatCurrency(0) }
+                ]
+        )
+    ].join('');
+}
+
+function applyAdminView(mode, elements) {
+    const normalizedMode = ['summary', 'responses', 'table'].includes(mode) ? mode : 'summary';
+
+    elements.adminViewButtons.forEach((button) => {
+        const isActive = button.dataset.adminView === normalizedMode;
+        button.classList.toggle('admin-view-button-active', isActive);
+        button.setAttribute('aria-selected', String(isActive));
+    });
+
+    elements.adminSummaryView.classList.toggle('hidden', normalizedMode !== 'summary');
+    elements.adminResponsesView.classList.toggle('hidden', normalizedMode !== 'responses');
+    elements.adminTableView.classList.toggle('hidden', normalizedMode !== 'table');
+}
+
+function buildSummaryCard(title, value, copy) {
+    return `
+        <article class="admin-summary-card">
+            <p class="card-eyebrow">${escapeHtml(title)}</p>
+            <div class="admin-summary-number">${escapeHtml(String(value))}</div>
+            <p class="admin-summary-copy">${escapeHtml(copy)}</p>
+        </article>
+    `;
+}
+
+function buildSummaryHighlight(title, items) {
+    const itemMarkup = items.map((item) => `
+        <div class="admin-summary-item">
+            <span>${escapeHtml(String(item.label))}</span>
+            <strong>${escapeHtml(String(item.value))}</strong>
+        </div>
+    `).join('');
+
+    return `
+        <article class="admin-summary-highlight">
+            <p class="card-eyebrow">Overview</p>
+            <h4>${escapeHtml(title)}</h4>
+            <div class="admin-summary-list">${itemMarkup}</div>
+        </article>
+    `;
+}
+
+function buildAdminCard(entry) {
+    const household = buildHouseholdName(entry);
     const guestCount = entry.guestCount && entry.guestCount !== '0' ? entry.guestCount : '--';
     const childrenCount = entry.childrenCount && entry.childrenCount !== '0' ? entry.childrenCount : '0';
-    const submittedLabel = entry.updatedAt ? 'Updated' : 'Submitted';
     const status = entry.attending === 'yes' ? 'Attending' : 'Declines';
-    const household = `${entry.firstName || ''} ${entry.lastName || ''}`.trim() || entry.displayName || entry.email || 'Unnamed guest';
+    const submittedLabel = entry.updatedAt ? 'Updated' : 'Submitted';
 
     return `
         <article class="admin-entry">
@@ -702,10 +927,20 @@ function buildAdminEntry(entry) {
                     <div>${submittedLabel} ${escapeHtml(formatTimestamp(entry.updatedAt || entry.submittedAt))}</div>
                 </div>
             </div>
+
+            <div class="admin-entry-toolbar">
+                <p class="admin-entry-toolbar-copy">Record the amount received in the bank account here, or remove this RSVP entirely if it was entered in error.</p>
+                <div class="admin-entry-actions">
+                    ${buildDonationForm(entry)}
+                    <button type="button" class="danger-button" data-delete-rsvp="${escapeHtml(entry.id)}" data-household="${escapeHtml(household)}">Delete RSVP</button>
+                </div>
+            </div>
+
             <dl class="admin-entry-grid">
                 ${detailPair('Phone', entry.phone)}
                 ${detailPair('Adults', guestCount)}
                 ${detailPair('Children', childrenCount)}
+                ${detailPair('Recorded Gift', formatDonationValue(entry.donationAmount))}
                 ${detailPair('Additional Guests', entry.guestNames)}
                 ${detailPair('Children\'s Ages', entry.childrenAges)}
                 ${detailPair('Dietary Needs', entry.dietary)}
@@ -719,6 +954,52 @@ function buildAdminEntry(entry) {
     `;
 }
 
+function buildAdminTableRow(entry) {
+    const household = buildHouseholdName(entry);
+    const status = entry.attending === 'yes' ? 'Attending' : 'Declines';
+    const partySize = entry.attending === 'yes'
+        ? `${getAdultCount(entry)} adults, ${getChildCount(entry)} children`
+        : '--';
+    const accommodation = entry.accommodationInterest
+        ? `${capitalize(entry.accommodationInterest)}${entry.accommodationCount ? ` (${entry.accommodationCount})` : ''}`
+        : '--';
+
+    return `
+        <tr>
+            <td class="admin-table-guest">
+                <strong>${escapeHtml(household)}</strong>
+                <div class="admin-table-meta">${escapeHtml(entry.email || 'No email provided')}</div>
+            </td>
+            <td>${escapeHtml(status)}</td>
+            <td>${escapeHtml(partySize)}</td>
+            <td>${escapeHtml(accommodation)}</td>
+            <td>${buildDonationForm(entry)}</td>
+            <td>${escapeHtml(formatTimestamp(entry.updatedAt || entry.submittedAt))}</td>
+            <td>
+                <div class="admin-table-actions">
+                    <button type="button" class="danger-button" data-delete-rsvp="${escapeHtml(entry.id)}" data-household="${escapeHtml(household)}">Delete</button>
+                </div>
+            </td>
+        </tr>
+    `;
+}
+
+function buildDonationForm(entry) {
+    const household = buildHouseholdName(entry);
+    const donationValue = getDonationNumber(entry.donationAmount);
+    const inputValue = donationValue === null ? '' : donationValue.toFixed(2);
+
+    return `
+        <form class="admin-donation-form" data-donation-form="${escapeHtml(entry.id)}" data-household="${escapeHtml(household)}">
+            <div>
+                <label for="donation-${escapeHtml(entry.id)}">Recorded gift (GBP)</label>
+                <input id="donation-${escapeHtml(entry.id)}" type="number" name="donationAmount" min="0" step="0.01" inputmode="decimal" placeholder="0.00" value="${escapeHtml(inputValue)}">
+            </div>
+            <button type="submit" class="inline-button">Save</button>
+        </form>
+    `;
+}
+
 function detailPair(label, value) {
     const rendered = escapeHtml(normalizeValue(value));
     return `
@@ -729,6 +1010,48 @@ function detailPair(label, value) {
     `;
 }
 
+function buildHouseholdName(entry) {
+    return `${entry.firstName || ''} ${entry.lastName || ''}`.trim() || entry.displayName || entry.email || 'Unnamed guest';
+}
+
+function getAdultCount(entry) {
+    return Math.max(parseCount(entry.guestCount), entry.attending === 'yes' ? 1 : 0);
+}
+
+function getChildCount(entry) {
+    return parseCount(entry.childrenCount);
+}
+
+function getPartySize(entry) {
+    return getAdultCount(entry) + getChildCount(entry);
+}
+
+function parseCount(value) {
+    const parsed = Number.parseInt(value || '0', 10);
+    return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function getDonationNumber(value) {
+    if (value === null || value === undefined || value === '') {
+        return null;
+    }
+
+    const parsed = Number.parseFloat(value);
+    return Number.isNaN(parsed) ? null : parsed;
+}
+
+function formatDonationValue(value) {
+    const donation = getDonationNumber(value);
+    return donation === null ? '--' : formatCurrency(donation);
+}
+
+function formatCurrency(value) {
+    return new Intl.NumberFormat('en-GB', {
+        style: 'currency',
+        currency: 'GBP'
+    }).format(value || 0);
+}
+
 function normalizeValue(value) {
     if (value === undefined || value === null) {
         return '--';
@@ -736,6 +1059,14 @@ function normalizeValue(value) {
 
     const rendered = String(value).trim();
     return rendered || '--';
+}
+
+function capitalize(value) {
+    if (!value) {
+        return '--';
+    }
+
+    return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 function formatTimestamp(value) {
@@ -820,6 +1151,8 @@ function friendlyErrorMessage(error) {
         return 'Too many attempts have been made. Please wait a little and try again.';
     case 'permission-denied':
         return 'Access was denied by the database rules. Check the Firestore rules and your admin setup.';
+    case 'not-found':
+        return 'That RSVP record could not be found.';
     default:
         return error?.message || 'Something went wrong. Please try again.';
     }
