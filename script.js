@@ -229,7 +229,7 @@ async function syncSession(user, state, elements) {
             return;
         }
     } catch (error) {
-        setBanner(elements, friendlyErrorMessage(error), 'error');
+        setBanner(elements, friendlyErrorMessage(error, 'session'), 'error');
         return;
     }
 
@@ -243,7 +243,7 @@ async function syncSession(user, state, elements) {
         state.isAdmin = await isAdminUser(user, state);
     } catch (error) {
         state.isAdmin = false;
-        setBanner(elements, friendlyErrorMessage(error), 'error');
+        setBanner(elements, friendlyErrorMessage(error, 'session'), 'error');
         return;
     }
 
@@ -533,7 +533,7 @@ async function loadGuestRsvp(state, elements, user) {
         state.existingRsvp = snapshot.data();
         populateRsvpForm(elements, user, state.existingRsvp);
     } catch (error) {
-        setBanner(elements, friendlyErrorMessage(error), 'error');
+        setBanner(elements, friendlyErrorMessage(error, 'guest-rsvp-load'), 'error');
     }
 }
 
@@ -628,7 +628,7 @@ async function handleRsvpSubmit(event, state, elements) {
         );
         setBanner(elements, isUpdate ? 'RSVP updated successfully.' : 'RSVP saved successfully.', 'success');
     } catch (error) {
-        setBanner(elements, friendlyErrorMessage(error), 'error');
+        setBanner(elements, friendlyErrorMessage(error, 'guest-rsvp-save'), 'error');
     } finally {
         restore();
     }
@@ -667,7 +667,7 @@ async function handleAdminDonationSubmit(event, donationForm, state, elements) {
         });
         setBanner(elements, `Saved the recorded donation for ${household}.`, 'success');
     } catch (error) {
-        setBanner(elements, friendlyErrorMessage(error), 'error');
+        setBanner(elements, friendlyErrorMessage(error, 'admin-action'), 'error');
     } finally {
         restore();
     }
@@ -693,7 +693,7 @@ async function handleAdminDelete(deleteButton, state, elements) {
         await deleteDoc(doc(state.db, 'rsvps', rsvpId));
         setBanner(elements, `Deleted the RSVP for ${household}.`, 'success');
     } catch (error) {
-        setBanner(elements, friendlyErrorMessage(error), 'error');
+        setBanner(elements, friendlyErrorMessage(error, 'admin-action'), 'error');
     } finally {
         restore();
     }
@@ -720,7 +720,7 @@ async function handleGrantAdmin(grantButton, state, elements) {
         }, { merge: true });
         setBanner(elements, `${targetName} can now use the admin dashboard after refreshing their session.`, 'success');
     } catch (error) {
-        setBanner(elements, friendlyErrorMessage(error), 'error');
+        setBanner(elements, friendlyErrorMessage(error, 'admin-action'), 'error');
     } finally {
         restore();
     }
@@ -769,7 +769,7 @@ async function handleRemoveUser(removeButton, state, elements) {
 
         setBanner(elements, `${targetName} has been removed from the website.`, 'success');
     } catch (error) {
-        setBanner(elements, friendlyErrorMessage(error), 'error');
+        setBanner(elements, friendlyErrorMessage(error, 'admin-action'), 'error');
     } finally {
         restore();
     }
@@ -948,7 +948,7 @@ function subscribeToAdminData(state, elements) {
 
         renderAdminEntries(state.adminEntries, state, elements);
     }, (error) => {
-        setBanner(elements, friendlyErrorMessage(error), 'error');
+        setBanner(elements, friendlyErrorMessage(error, 'admin-dashboard'), 'error');
     });
 
     state.adminProfilesUnsubscribe = onSnapshot(collection(state.db, 'profiles'), (snapshot) => {
@@ -961,7 +961,7 @@ function subscribeToAdminData(state, elements) {
 
         renderAdminEntries(state.adminEntries, state, elements);
     }, (error) => {
-        setBanner(elements, friendlyErrorMessage(error), 'error');
+        setBanner(elements, friendlyErrorMessage(error, 'admin-dashboard'), 'error');
     });
 
     state.adminRolesUnsubscribe = onSnapshot(collection(state.db, 'admins'), (snapshot) => {
@@ -972,7 +972,7 @@ function subscribeToAdminData(state, elements) {
 
         renderAdminEntries(state.adminEntries, state, elements);
     }, (error) => {
-        setBanner(elements, friendlyErrorMessage(error), 'error');
+        setBanner(elements, friendlyErrorMessage(error, 'admin-dashboard'), 'error');
     });
 
     state.adminBlockedUnsubscribe = onSnapshot(collection(state.db, 'blockedUsers'), (snapshot) => {
@@ -983,7 +983,7 @@ function subscribeToAdminData(state, elements) {
 
         renderAdminEntries(state.adminEntries, state, elements);
     }, (error) => {
-        setBanner(elements, friendlyErrorMessage(error), 'error');
+        setBanner(elements, friendlyErrorMessage(error, 'admin-dashboard'), 'error');
     });
 }
 
@@ -1431,7 +1431,7 @@ function setBanner(elements, message, variant = 'info') {
     }
 }
 
-function friendlyErrorMessage(error) {
+function friendlyErrorMessage(error, context = 'general') {
     const errorCode = error?.code || '';
 
     switch (errorCode) {
@@ -1448,7 +1448,27 @@ function friendlyErrorMessage(error) {
     case 'auth/too-many-requests':
         return 'Too many attempts have been made. Please wait a little and try again.';
     case 'permission-denied':
-        return 'Access was denied by the database rules. Check the Firestore rules and your admin setup.';
+        if (context === 'admin-dashboard') {
+            return 'The admin dashboard could not load yet. Please refresh the page, and if that does not help, publish the latest Firestore rules in Firebase.';
+        }
+
+        if (context === 'admin-action') {
+            return 'That admin action could not be completed. Please refresh the page and, if needed, publish the latest Firestore rules in Firebase.';
+        }
+
+        if (context === 'guest-rsvp-load') {
+            return 'We could not load your saved RSVP just now. Please refresh the page and try again.';
+        }
+
+        if (context === 'guest-rsvp-save') {
+            return 'We could not save your RSVP just now. Please refresh the page and try again.';
+        }
+
+        if (context === 'session') {
+            return 'We could not refresh your access just now. Please refresh the page and try again.';
+        }
+
+        return 'We could not complete that request with this account. Please refresh the page and try again.';
     case 'not-found':
         return 'That RSVP record could not be found.';
     default:
