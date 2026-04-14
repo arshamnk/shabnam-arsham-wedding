@@ -5,13 +5,19 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.email_verified == true;
     }
 
+    function isBootstrapAdmin() {
+      return signedInAndVerified()
+        && request.auth.token.email == 'antiret@gmail.com';
+    }
+
     function isCurrentUser(userId) {
       return signedInAndVerified() && request.auth.uid == userId;
     }
 
     function isAdmin() {
-      return signedInAndVerified() &&
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+      return isBootstrapAdmin() ||
+        (signedInAndVerified() &&
+          exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
     }
 
     function keepsIdentityStable() {
@@ -34,10 +40,30 @@ service cloud.firestore {
         ]);
     }
 
+    function isProfileWrite(userId) {
+      return isCurrentUser(userId)
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.emailVerified == true;
+    }
+
+    function isAdminGrantWrite(userId) {
+      return isAdmin()
+        && request.resource.data.uid == userId;
+    }
+
     match /admins/{userId} {
-      allow get: if isCurrentUser(userId);
-      allow list: if false;
-      allow create, update, delete: if false;
+      allow get: if isAdmin() || isCurrentUser(userId);
+      allow list: if isAdmin();
+      allow create, update: if isAdminGrantWrite(userId);
+      allow delete: if false;
+    }
+
+    match /profiles/{userId} {
+      allow get: if isAdmin() || isCurrentUser(userId);
+      allow list: if isAdmin();
+      allow create, update: if isProfileWrite(userId);
+      allow delete: if false;
     }
 
     match /rsvps/{userId} {

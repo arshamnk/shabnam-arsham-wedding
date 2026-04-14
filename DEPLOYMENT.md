@@ -18,7 +18,7 @@ Make sure you have already:
 4. Deployed [firestore.rules](/home/arshamnk/Dropbox/Wedding/shabnam-arsham-wedding/firestore.rules).
 5. Either listed your admin email in `appConfig.adminEmails` or created an admin document in the `admins` collection for your verified account.
 
-If you change the admin capabilities later, remember to republish the Firestore rules. The admin delete and donation-record features rely on the latest rules being live.
+If you change the admin capabilities later, remember to republish the Firestore rules. The admin delete, donation-record, and website-based admin-grant features rely on the latest rules being live.
 
 ## Push Changes
 

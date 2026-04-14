@@ -37,9 +37,13 @@ document.addEventListener('DOMContentLoaded', () => {
         db: null,
         currentUser: null,
         isAdmin: false,
-        adminUnsubscribe: null,
+        adminRsvpUnsubscribe: null,
+        adminProfilesUnsubscribe: null,
+        adminRolesUnsubscribe: null,
         existingRsvp: null,
         adminEntries: [],
+        verifiedProfiles: [],
+        grantedAdmins: [],
         adminViewMode: 'summary',
         bankDetailsVisible: false
     };
@@ -79,6 +83,8 @@ function getElements() {
         adminView: document.getElementById('adminView'),
         adminList: document.getElementById('adminList'),
         adminTableBody: document.getElementById('adminTableBody'),
+        adminAccessList: document.getElementById('adminAccessList'),
+        adminAccessEmptyState: document.getElementById('adminAccessEmptyState'),
         adminSummaryGrid: document.getElementById('adminSummaryGrid'),
         adminSummaryHighlights: document.getElementById('adminSummaryHighlights'),
         adminSummaryView: document.getElementById('adminSummaryView'),
@@ -138,8 +144,7 @@ function getElements() {
         fundBankName: document.getElementById('fundBankName'),
         fundAccountName: document.getElementById('fundAccountName'),
         fundSortCode: document.getElementById('fundSortCode'),
-        fundAccountNumber: document.getElementById('fundAccountNumber'),
-        fundContactEmail: document.getElementById('fundContactEmail')
+        fundAccountNumber: document.getElementById('fundAccountNumber')
     };
 }
 
@@ -166,13 +171,15 @@ async function syncSession(user, state, elements) {
     state.currentUser = user;
     state.bankDetailsVisible = false;
     updateBankDetailsVisibility(state, elements);
-    clearAdminSubscription(state);
+    clearAdminSubscriptions(state);
     hideSuccessMessage(elements);
 
     if (!user) {
         state.isAdmin = false;
         state.existingRsvp = null;
         state.adminEntries = [];
+        state.verifiedProfiles = [];
+        state.grantedAdmins = [];
         state.adminViewMode = 'summary';
         renderAdminEntries(state.adminEntries, state, elements);
         elements.authStatusBar.classList.add('hidden');
@@ -203,6 +210,12 @@ async function syncSession(user, state, elements) {
     elements.verificationGate.classList.add('hidden');
 
     try {
+        await ensureVerifiedProfile(user, state);
+    } catch (error) {
+        setBanner(elements, 'Your account is verified, but the site could not refresh your access profile yet. Core access still works, but admin self-service may need the latest Firestore rules.', 'info');
+    }
+
+    try {
         state.isAdmin = await isAdminUser(user, state);
     } catch (error) {
         state.isAdmin = false;
@@ -216,7 +229,7 @@ async function syncSession(user, state, elements) {
         elements.adminView.classList.remove('hidden');
         setBanner(elements, 'Verified admin access enabled. RSVP submissions are shown below.', 'success');
         renderAdminEntries(state.adminEntries, state, elements);
-        subscribeToAdminRsvps(state, elements);
+        subscribeToAdminData(state, elements);
         return;
     }
 
@@ -237,6 +250,19 @@ async function isAdminUser(user, state) {
 
     const adminSnapshot = await getDoc(doc(state.db, 'admins', user.uid));
     return adminSnapshot.exists();
+}
+
+async function ensureVerifiedProfile(user, state) {
+    const fallbackName = splitName('', '', user.displayName || '');
+    const displayName = user.displayName || `${fallbackName.firstName} ${fallbackName.lastName}`.trim() || user.email || 'Verified guest';
+
+    await setDoc(doc(state.db, 'profiles', user.uid), {
+        uid: user.uid,
+        email: user.email || '',
+        displayName,
+        emailVerified: true,
+        lastSeenAt: serverTimestamp()
+    }, { merge: true });
 }
 
 function bindAuthTabs(elements) {
@@ -272,6 +298,13 @@ function bindProtectedInteractions(state, elements) {
     });
 
     elements.adminView.addEventListener('click', (event) => {
+        const grantAdminButton = event.target.closest('[data-grant-admin]');
+
+        if (grantAdminButton) {
+            handleGrantAdmin(grantAdminButton, state, elements);
+            return;
+        }
+
         const deleteButton = event.target.closest('[data-delete-rsvp]');
 
         if (!deleteButton) {
@@ -424,14 +457,11 @@ function renderWeddingFundDetails(state, elements) {
     const accountName = fund.accountName?.trim() || 'Add account name in app-config.js';
     const sortCode = fund.sortCode?.trim() || 'Add sort code in app-config.js';
     const accountNumber = fund.accountNumber?.trim() || 'Add account number in app-config.js';
-    const contactEmail = fund.contactEmail?.trim() || 'replace-me@example.com';
 
     elements.fundBankName.textContent = bankName;
     elements.fundAccountName.textContent = accountName;
     elements.fundSortCode.textContent = sortCode;
     elements.fundAccountNumber.textContent = accountNumber;
-    elements.fundContactEmail.textContent = contactEmail;
-    elements.fundContactEmail.href = `mailto:${contactEmail}`;
     updateBankDetailsVisibility(state, elements);
 }
 
@@ -623,6 +653,33 @@ async function handleAdminDelete(deleteButton, state, elements) {
     }
 }
 
+async function handleGrantAdmin(grantButton, state, elements) {
+    if (!state.isAdmin) {
+        setBanner(elements, 'Admin access is required to grant admin roles.', 'error');
+        return;
+    }
+
+    const targetUid = grantButton.dataset.grantAdmin;
+    const targetEmail = grantButton.dataset.email || '';
+    const targetName = grantButton.dataset.name || targetEmail || 'this verified user';
+    const restore = setBusy(grantButton, 'Granting...');
+
+    try {
+        await setDoc(doc(state.db, 'admins', targetUid), {
+            uid: targetUid,
+            email: targetEmail,
+            displayName: targetName,
+            grantedAt: serverTimestamp(),
+            grantedBy: state.currentUser?.uid || ''
+        }, { merge: true });
+        setBanner(elements, `${targetName} can now use the admin dashboard after refreshing their session.`, 'success');
+    } catch (error) {
+        setBanner(elements, friendlyErrorMessage(error), 'error');
+    } finally {
+        restore();
+    }
+}
+
 function bindFormVisibilityHandlers(elements) {
     elements.attendingRadios.forEach((radio) => {
         radio.addEventListener('change', () => {
@@ -783,13 +840,37 @@ function attachStaticInteractions(elements) {
     });
 }
 
-function subscribeToAdminRsvps(state, elements) {
-    clearAdminSubscription(state);
+function subscribeToAdminData(state, elements) {
+    clearAdminSubscriptions(state);
 
     const rsvpQuery = query(collection(state.db, 'rsvps'), orderBy('updatedAt', 'desc'));
 
-    state.adminUnsubscribe = onSnapshot(rsvpQuery, (snapshot) => {
+    state.adminRsvpUnsubscribe = onSnapshot(rsvpQuery, (snapshot) => {
         state.adminEntries = snapshot.docs.map((entry) => ({
+            id: entry.id,
+            ...entry.data()
+        }));
+
+        renderAdminEntries(state.adminEntries, state, elements);
+    }, (error) => {
+        setBanner(elements, friendlyErrorMessage(error), 'error');
+    });
+
+    state.adminProfilesUnsubscribe = onSnapshot(collection(state.db, 'profiles'), (snapshot) => {
+        state.verifiedProfiles = snapshot.docs.map((entry) => ({
+            id: entry.id,
+            ...entry.data()
+        })).sort((left, right) => {
+            return (left.displayName || left.email || '').localeCompare(right.displayName || right.email || '');
+        });
+
+        renderAdminEntries(state.adminEntries, state, elements);
+    }, (error) => {
+        setBanner(elements, friendlyErrorMessage(error), 'error');
+    });
+
+    state.adminRolesUnsubscribe = onSnapshot(collection(state.db, 'admins'), (snapshot) => {
+        state.grantedAdmins = snapshot.docs.map((entry) => ({
             id: entry.id,
             ...entry.data()
         }));
@@ -800,16 +881,25 @@ function subscribeToAdminRsvps(state, elements) {
     });
 }
 
-function clearAdminSubscription(state) {
-    if (typeof state.adminUnsubscribe === 'function') {
-        state.adminUnsubscribe();
-    }
+function clearAdminSubscriptions(state) {
+    [
+        state.adminRsvpUnsubscribe,
+        state.adminProfilesUnsubscribe,
+        state.adminRolesUnsubscribe
+    ].forEach((unsubscribe) => {
+        if (typeof unsubscribe === 'function') {
+            unsubscribe();
+        }
+    });
 
-    state.adminUnsubscribe = null;
+    state.adminRsvpUnsubscribe = null;
+    state.adminProfilesUnsubscribe = null;
+    state.adminRolesUnsubscribe = null;
 }
 
 function renderAdminEntries(entries, state, elements) {
     elements.adminRsvpCount.textContent = String(entries.length);
+    renderAdminAccess(state, elements);
     renderAdminSummary(entries, elements);
     elements.adminList.innerHTML = entries.map((entry) => buildAdminCard(entry)).join('');
     elements.adminTableBody.innerHTML = entries.map((entry) => buildAdminTableRow(entry)).join('');
@@ -821,6 +911,53 @@ function renderAdminEntries(entries, state, elements) {
     }
 
     applyAdminView(state.adminViewMode, elements);
+}
+
+function renderAdminAccess(state, elements) {
+    const profiles = state.verifiedProfiles || [];
+
+    if (!profiles.length) {
+        elements.adminAccessEmptyState.classList.remove('hidden');
+        elements.adminAccessList.innerHTML = '';
+        return;
+    }
+
+    elements.adminAccessEmptyState.classList.add('hidden');
+    elements.adminAccessList.innerHTML = profiles.map((profile) => buildAdminAccessRow(profile, state)).join('');
+}
+
+function buildAdminAccessRow(profile, state) {
+    const isGrantedAdmin = isGrantedAdminProfile(profile, state);
+    const isBootstrapAdmin = isBootstrapAdminEmail(profile.email);
+    const isAnyAdmin = isGrantedAdmin || isBootstrapAdmin;
+    const statusLabel = isBootstrapAdmin ? 'Fixed Admin' : (isGrantedAdmin ? 'Admin Granted' : 'Verified User');
+    const buttonMarkup = isAnyAdmin
+        ? '<span class="status-pill status-pill-admin">Already Admin</span>'
+        : `<button type="button" class="inline-button" data-grant-admin="${escapeHtml(profile.uid || profile.id)}" data-email="${escapeHtml(profile.email || '')}" data-name="${escapeHtml(profile.displayName || profile.email || 'Verified user')}">Make Admin</button>`;
+
+    return `
+        <article class="admin-access-row">
+            <div class="admin-access-meta">
+                <strong>${escapeHtml(profile.displayName || profile.email || 'Verified user')}</strong>
+                <div class="admin-access-copy">${escapeHtml(profile.email || 'No email recorded')}</div>
+                <div class="admin-access-copy">Last seen ${escapeHtml(formatTimestamp(profile.lastSeenAt))}</div>
+            </div>
+            <div class="admin-access-actions">
+                <span class="status-pill ${isAnyAdmin ? 'status-pill-admin' : ''}">${escapeHtml(statusLabel)}</span>
+                ${buttonMarkup}
+            </div>
+        </article>
+    `;
+}
+
+function isGrantedAdminProfile(profile, state) {
+    const uid = profile.uid || profile.id;
+    return (state.grantedAdmins || []).some((entry) => (entry.uid || entry.id) === uid);
+}
+
+function isBootstrapAdminEmail(email) {
+    const configuredAdminEmails = (appConfig.adminEmails || []).map((entry) => entry.trim().toLowerCase());
+    return configuredAdminEmails.includes((email || '').trim().toLowerCase());
 }
 
 function renderAdminSummary(entries, elements) {

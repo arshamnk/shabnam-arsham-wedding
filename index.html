@@ -219,7 +219,7 @@
                         </div>
 
                         <p class="panel-note"><strong>Payment reference:</strong> Please include your full name or household name in the reference field so we know who the gift is from.</p>
-                        <p class="panel-note">Please use the exact account name shown above so your bank can run Confirmation of Payee. If you are paying from someone else&apos;s account, let us know at <a id="fundContactEmail" href="#"></a>.</p>
+                        <p class="panel-note">Please use the exact account name shown above so your bank can run Confirmation of Payee.</p>
                         <p class="panel-note">These details are shown only after guest login and verified-email access. Please do not post or forward them more widely.</p>
                     </aside>
 
@@ -382,6 +382,20 @@
                     <button type="button" class="admin-view-button" data-admin-view="responses" aria-selected="false">Responses</button>
                     <button type="button" class="admin-view-button" data-admin-view="table" aria-selected="false">Table</button>
                 </div>
+
+                <section class="admin-access-panel">
+                    <div class="admin-access-header">
+                        <div>
+                            <p class="panel-eyebrow">Access Control</p>
+                            <h4>Grant Admin Access</h4>
+                            <p class="panel-intro">Verified users who have signed in to the site will appear here. You can grant admin access directly from this list without returning to Firebase.</p>
+                        </div>
+                    </div>
+                    <div id="adminAccessEmptyState" class="empty-state hidden">
+                        <p>No verified users have signed in yet.</p>
+                    </div>
+                    <div id="adminAccessList" class="admin-access-list"></div>
+                </section>
 
                 <section id="adminSummaryView" class="admin-content-view">
                     <div id="adminSummaryGrid" class="admin-summary-grid"></div>

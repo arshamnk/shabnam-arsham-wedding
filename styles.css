@@ -892,6 +892,74 @@ h1, h2, h3, h4, h5, h6 {
     margin-top: 6px;
 }
 
+.admin-access-panel {
+    margin-bottom: 28px;
+    padding: 30px 32px;
+    border-radius: 8px;
+    border: 1px solid rgba(139, 115, 85, 0.12);
+    background-color: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 12px 28px rgba(139, 115, 85, 0.06);
+}
+
+.admin-access-header h4 {
+    font-size: 1.8rem;
+    color: var(--primary-color);
+    margin-bottom: 10px;
+}
+
+.admin-access-list {
+    display: grid;
+    gap: 16px;
+}
+
+.admin-access-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    align-items: center;
+    padding: 18px 20px;
+    border-radius: 8px;
+    border: 1px solid rgba(139, 115, 85, 0.1);
+    background-color: rgba(253, 251, 247, 0.98);
+}
+
+.admin-access-meta strong {
+    display: block;
+    color: var(--text-dark);
+}
+
+.admin-access-copy {
+    margin-top: 4px;
+    color: var(--text-light);
+    font-size: 0.9rem;
+}
+
+.admin-access-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 7px 12px;
+    border-radius: 999px;
+    background-color: rgba(212, 165, 116, 0.16);
+    color: var(--primary-color);
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.status-pill-admin {
+    background-color: rgba(76, 175, 80, 0.14);
+    color: #2f6b33;
+}
+
 .admin-summary-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1333,13 +1401,15 @@ h1, h2, h3, h4, h5, h6 {
     }
 
     .protected-shell-header,
-    .admin-entry-toolbar {
+    .admin-entry-toolbar,
+    .admin-access-row {
         flex-direction: column;
         align-items: stretch;
     }
 
     .admin-panel-actions,
-    .admin-entry-actions {
+    .admin-entry-actions,
+    .admin-access-actions {
         justify-content: flex-start;
     }
 

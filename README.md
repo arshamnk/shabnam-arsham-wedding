@@ -7,6 +7,7 @@ This is a static wedding website for GitHub Pages with:
 - a shared RSVP form stored in Firestore
 - an admin dashboard for reviewing all RSVP submissions
 - admin-only donation tracking and RSVP deletion controls
+- website-based promotion of verified users to admin access
 
 ## Local Testing
 
@@ -50,9 +51,10 @@ firebase use <your-project-id>
 firebase deploy --only firestore:rules
 ```
 
-The rules do three things:
+The rules do four things:
 
 - only verified-email users can save an RSVP
+- verified users write a lightweight profile document when they log in
 - normal guests can only read their own RSVP
 - admin users can read every RSVP
 - admin users can update the recorded donation amount and delete an RSVP
@@ -77,6 +79,8 @@ The configured email route is the simplest option for a single permanent admin.
    - `email: "you@example.com"`
 
 Once either admin path is in place, the verified account will see the admin dashboard instead of the guest RSVP page.
+
+After the initial bootstrap admin is in place, the admin dashboard can grant admin access to any verified user who has already signed in to the site. Those verified users appear in the website's `Access Control` list automatically.
 
 ## RSVP Storage Model
 
