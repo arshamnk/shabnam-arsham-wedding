@@ -368,7 +368,7 @@
                     <div>
                         <p class="panel-eyebrow">Admin View</p>
                         <h3 id="adminDashboardTitle" class="panel-title" tabindex="-1">RSVP Submissions</h3>
-                        <p class="panel-intro">Verified admin accounts can review the protected guest responses below. Use the dashboard controls here to move between access management, summaries, individual responses, and the table view.</p>
+                        <p class="panel-intro">Verified admin accounts can manage access and review guest responses here. Use the tabs below to switch between the response summary, individual responses, and the table view.</p>
                     </div>
                     <div class="admin-panel-actions">
                         <div class="admin-stat">
@@ -377,13 +377,6 @@
                         </div>
                         <button type="button" class="ghost-button" data-action="sign-out">Log Out</button>
                     </div>
-                </div>
-
-                <div class="admin-quick-nav" aria-label="Admin dashboard sections">
-                    <button type="button" class="admin-quick-nav-button" data-admin-jump="access">Access Control</button>
-                    <button type="button" class="admin-quick-nav-button" data-admin-jump="summary">Summary</button>
-                    <button type="button" class="admin-quick-nav-button" data-admin-jump="responses">Responses</button>
-                    <button type="button" class="admin-quick-nav-button" data-admin-jump="table">Table</button>
                 </div>
 
                 <div class="admin-view-switcher" role="tablist" aria-label="Admin RSVP views">
@@ -397,7 +390,7 @@
                         <div>
                             <p class="panel-eyebrow">Access Control</p>
                             <h4>Grant Admin Access</h4>
-                            <p class="panel-intro">Verified users who have signed in to the site will appear here. You can grant admin access directly from this list, or remove a user to revoke their website access without returning to Firebase.</p>
+                            <p class="panel-intro">Any verified users who have signed in, plus any households with a saved RSVP, will appear here. You can grant admin access, remove access, or restore access directly from this list.</p>
                         </div>
                     </div>
                     <div id="adminAccessEmptyState" class="empty-state hidden">

@@ -122,7 +122,6 @@ function getElements() {
         refreshSessionButton: document.getElementById('refreshSessionButton'),
         openDashboardButton: document.getElementById('openDashboardButton'),
         signOutButtons: Array.from(document.querySelectorAll('[data-action="sign-out"]')),
-        adminJumpButtons: Array.from(document.querySelectorAll('[data-admin-jump]')),
         toggleBankDetailsButton: document.getElementById('toggleBankDetailsButton'),
         sensitiveBankDetails: document.getElementById('sensitiveBankDetails'),
         rsvpForm: document.getElementById('rsvpForm'),
@@ -352,12 +351,6 @@ function bindProtectedInteractions(state, elements) {
         });
     });
 
-    elements.adminJumpButtons.forEach((button) => {
-        button.addEventListener('click', () => {
-            openAdminDashboard(button.dataset.adminJump || 'summary', state, elements);
-        });
-    });
-
     elements.adminView.addEventListener('submit', (event) => {
         const donationForm = event.target.closest('[data-donation-form]');
 
@@ -380,6 +373,13 @@ function bindProtectedInteractions(state, elements) {
 
         if (removeUserButton) {
             handleRemoveUser(removeUserButton, state, elements);
+            return;
+        }
+
+        const restoreUserButton = event.target.closest('[data-restore-user]');
+
+        if (restoreUserButton) {
+            handleRestoreUser(restoreUserButton, state, elements);
             return;
         }
 
@@ -728,6 +728,8 @@ async function handleAdminDelete(deleteButton, state, elements) {
 
     try {
         await deleteDoc(doc(state.db, 'rsvps', rsvpId));
+        state.adminEntries = state.adminEntries.filter((entry) => entry.id !== rsvpId);
+        renderAdminEntries(state.adminEntries, state, elements);
         setBanner(elements, `Deleted the RSVP for ${household}.`, 'success');
     } catch (error) {
         setBanner(elements, friendlyErrorMessage(error, 'admin-action'), 'error');
@@ -804,7 +806,38 @@ async function handleRemoveUser(removeButton, state, elements) {
             await deleteDoc(doc(state.db, 'admins', targetUid));
         }
 
+        upsertLocalBlockedUser(state, {
+            uid: targetUid,
+            email: targetEmail,
+            displayName: targetName,
+            blockedAt: new Date(),
+            blockedBy: state.currentUser?.uid || ''
+        });
+        state.grantedAdmins = state.grantedAdmins.filter((entry) => (entry.uid || entry.id) !== targetUid);
+        renderAdminEntries(state.adminEntries, state, elements);
         setBanner(elements, `${targetName} has been removed from the website.`, 'success');
+    } catch (error) {
+        setBanner(elements, friendlyErrorMessage(error, 'admin-action'), 'error');
+    } finally {
+        restore();
+    }
+}
+
+async function handleRestoreUser(restoreButton, state, elements) {
+    if (!state.isAdmin) {
+        setBanner(elements, 'Admin access is required to restore users.', 'error');
+        return;
+    }
+
+    const targetUid = restoreButton.dataset.restoreUser;
+    const targetName = restoreButton.dataset.name || 'this user';
+    const restore = setBusy(restoreButton, 'Restoring...');
+
+    try {
+        await deleteDoc(doc(state.db, 'blockedUsers', targetUid));
+        state.blockedUsers = state.blockedUsers.filter((entry) => (entry.uid || entry.id) !== targetUid);
+        renderAdminEntries(state.adminEntries, state, elements);
+        setBanner(elements, `${targetName} can access the website again.`, 'success');
     } catch (error) {
         setBanner(elements, friendlyErrorMessage(error, 'admin-action'), 'error');
     } finally {
@@ -1046,8 +1079,8 @@ function renderAdminEntries(entries, state, elements) {
     elements.adminRsvpCount.textContent = String(entries.length);
     renderAdminAccess(state, elements);
     renderAdminSummary(entries, elements);
-    elements.adminList.innerHTML = entries.map((entry) => buildAdminCard(entry)).join('');
-    elements.adminTableBody.innerHTML = entries.map((entry) => buildAdminTableRow(entry)).join('');
+    elements.adminList.innerHTML = entries.map((entry) => buildAdminCard(entry, state)).join('');
+    elements.adminTableBody.innerHTML = entries.map((entry) => buildAdminTableRow(entry, state)).join('');
 
     if (!entries.length) {
         elements.adminEmptyState.classList.remove('hidden');
@@ -1059,7 +1092,7 @@ function renderAdminEntries(entries, state, elements) {
 }
 
 function renderAdminAccess(state, elements) {
-    const profiles = (state.verifiedProfiles || []).filter((profile) => !isBlockedUserProfile(profile, state));
+    const profiles = getAdminAccessProfiles(state);
 
     if (!profiles.length) {
         elements.adminAccessEmptyState.classList.remove('hidden');
@@ -1072,24 +1105,52 @@ function renderAdminAccess(state, elements) {
 }
 
 function buildAdminAccessRow(profile, state) {
+    const uid = profile.uid || profile.id;
+    const email = profile.email || '';
     const isGrantedAdmin = isGrantedAdminProfile(profile, state);
-    const isBootstrapAdmin = isBootstrapAdminEmail(profile.email);
+    const isBootstrapAdmin = isBootstrapAdminEmail(email);
     const isAnyAdmin = isGrantedAdmin || isBootstrapAdmin;
-    const isCurrentSession = (profile.uid || profile.id) === state.currentUser?.uid;
-    const statusLabel = isBootstrapAdmin ? 'Fixed Admin' : (isGrantedAdmin ? 'Admin Granted' : 'Verified User');
-    const buttonMarkup = isAnyAdmin
-        ? '<span class="status-pill status-pill-admin">Already Admin</span>'
-        : `<button type="button" class="inline-button" data-grant-admin="${escapeHtml(profile.uid || profile.id)}" data-email="${escapeHtml(profile.email || '')}" data-name="${escapeHtml(profile.displayName || profile.email || 'Verified user')}">Make Admin</button>`;
-    const removeMarkup = (isBootstrapAdmin || isCurrentSession)
+    const isCurrentSession = uid === state.currentUser?.uid;
+    const isBlocked = isBlockedUserProfile(profile, state);
+    const statusLabel = isBlocked
+        ? 'Access Removed'
+        : isBootstrapAdmin
+            ? 'Fixed Admin'
+            : isGrantedAdmin
+                ? 'Admin Granted'
+                : profile.hasProfile
+                    ? 'Verified User'
+                    : profile.hasRsvp
+                        ? 'RSVP On File'
+                        : 'User';
+    const buttonMarkup = isBlocked
+        ? '<span class="status-pill">Access Removed</span>'
+        : isAnyAdmin
+            ? '<span class="status-pill status-pill-admin">Already Admin</span>'
+            : `<button type="button" class="inline-button" data-grant-admin="${escapeHtml(uid)}" data-email="${escapeHtml(email)}" data-name="${escapeHtml(profile.displayName || email || 'Verified user')}">Make Admin</button>`;
+    const removeMarkup = isBlocked
+        ? `<button type="button" class="inline-button" data-restore-user="${escapeHtml(uid)}" data-name="${escapeHtml(profile.displayName || email || 'This user')}">Restore Access</button>`
+        : (isBootstrapAdmin || isCurrentSession)
         ? `<span class="status-pill ${isCurrentSession ? 'status-pill-admin' : ''}">${escapeHtml(isCurrentSession ? 'Current Session' : 'Protected')}</span>`
-        : `<button type="button" class="danger-button" data-remove-user="${escapeHtml(profile.uid || profile.id)}" data-email="${escapeHtml(profile.email || '')}" data-name="${escapeHtml(profile.displayName || profile.email || 'Verified user')}">Remove User</button>`;
+        : `<button type="button" class="danger-button" data-remove-user="${escapeHtml(uid)}" data-email="${escapeHtml(email)}" data-name="${escapeHtml(profile.displayName || email || 'Verified user')}">Remove Access</button>`;
+    const provenanceCopy = profile.hasProfile
+        ? `Last seen ${escapeHtml(formatTimestamp(profile.lastSeenAt))}`
+        : profile.hasRsvp
+            ? `RSVP saved ${escapeHtml(formatTimestamp(profile.lastSeenAt))}`
+            : `Last updated ${escapeHtml(formatTimestamp(profile.lastSeenAt))}`;
+    const accessCopy = isBlocked
+        ? `Access removed ${escapeHtml(formatTimestamp(profile.blockedAt || profile.lastSeenAt))}`
+        : profile.hasRsvp && !profile.hasProfile
+            ? 'Visible here because an RSVP exists for this account.'
+            : 'Signed in with a verified email address.';
 
     return `
         <article class="admin-access-row">
             <div class="admin-access-meta">
-                <strong>${escapeHtml(profile.displayName || profile.email || 'Verified user')}</strong>
-                <div class="admin-access-copy">${escapeHtml(profile.email || 'No email recorded')}</div>
-                <div class="admin-access-copy">Last seen ${escapeHtml(formatTimestamp(profile.lastSeenAt))}</div>
+                <strong>${escapeHtml(profile.displayName || email || 'Verified user')}</strong>
+                <div class="admin-access-copy">${escapeHtml(email || 'No email recorded')}</div>
+                <div class="admin-access-copy">${provenanceCopy}</div>
+                <div class="admin-access-copy">${accessCopy}</div>
             </div>
             <div class="admin-access-actions">
                 <span class="status-pill ${isAnyAdmin ? 'status-pill-admin' : ''}">${escapeHtml(statusLabel)}</span>
@@ -1098,6 +1159,79 @@ function buildAdminAccessRow(profile, state) {
             </div>
         </article>
     `;
+}
+
+function getAdminAccessProfiles(state) {
+    const merged = new Map();
+
+    (state.verifiedProfiles || []).forEach((profile) => {
+        mergeAdminAccessProfile(merged, profile, 'profile');
+    });
+
+    (state.adminEntries || []).forEach((entry) => {
+        mergeAdminAccessProfile(merged, {
+            uid: entry.uid || entry.id,
+            email: entry.email || '',
+            displayName: buildHouseholdName(entry),
+            lastSeenAt: entry.updatedAt || entry.submittedAt
+        }, 'rsvp');
+    });
+
+    (state.grantedAdmins || []).forEach((entry) => {
+        mergeAdminAccessProfile(merged, entry, 'admin');
+    });
+
+    (state.blockedUsers || []).forEach((entry) => {
+        mergeAdminAccessProfile(merged, entry, 'blocked');
+    });
+
+    return Array.from(merged.values()).sort((left, right) => {
+        if (left.isBlocked !== right.isBlocked) {
+            return left.isBlocked ? 1 : -1;
+        }
+
+        return (left.displayName || left.email || '').localeCompare(right.displayName || right.email || '');
+    });
+}
+
+function mergeAdminAccessProfile(map, entry, source) {
+    const uid = entry.uid || entry.id || '';
+    const email = (entry.email || '').trim();
+    const key = uid || (email ? `email:${email.toLowerCase()}` : '');
+
+    if (!key) {
+        return;
+    }
+
+    const existing = map.get(key) || {
+        uid: uid || '',
+        email: email || '',
+        displayName: '',
+        lastSeenAt: null,
+        blockedAt: null,
+        hasProfile: false,
+        hasRsvp: false,
+        hasAdminRole: false,
+        isBlocked: false
+    };
+
+    const candidateName = (entry.displayName || `${entry.firstName || ''} ${entry.lastName || ''}`.trim() || email).trim();
+    const merged = {
+        ...existing,
+        uid: existing.uid || uid,
+        email: existing.email || email,
+        displayName: existing.displayName || candidateName || existing.email || 'Verified user',
+        lastSeenAt: pickLaterTimestamp(existing.lastSeenAt, entry.lastSeenAt || entry.updatedAt || entry.submittedAt || entry.grantedAt || entry.blockedAt),
+        blockedAt: source === 'blocked'
+            ? pickLaterTimestamp(existing.blockedAt, entry.blockedAt)
+            : existing.blockedAt,
+        hasProfile: existing.hasProfile || source === 'profile',
+        hasRsvp: existing.hasRsvp || source === 'rsvp',
+        hasAdminRole: existing.hasAdminRole || source === 'admin',
+        isBlocked: existing.isBlocked || source === 'blocked'
+    };
+
+    map.set(key, merged);
 }
 
 function isGrantedAdminProfile(profile, state) {
@@ -1113,6 +1247,39 @@ function isBootstrapAdminEmail(email) {
 function isBlockedUserProfile(profile, state) {
     const uid = profile.uid || profile.id;
     return (state.blockedUsers || []).some((entry) => (entry.uid || entry.id) === uid);
+}
+
+function upsertLocalBlockedUser(state, blockedEntry) {
+    const uid = blockedEntry.uid || blockedEntry.id;
+
+    if (!uid) {
+        return;
+    }
+
+    const remaining = (state.blockedUsers || []).filter((entry) => (entry.uid || entry.id) !== uid);
+    state.blockedUsers = [
+        ...remaining,
+        blockedEntry
+    ];
+}
+
+function pickLaterTimestamp(currentValue, candidateValue) {
+    return toTimestampMillis(candidateValue) > toTimestampMillis(currentValue)
+        ? candidateValue
+        : currentValue;
+}
+
+function toTimestampMillis(value) {
+    if (!value) {
+        return -1;
+    }
+
+    if (typeof value.toDate === 'function') {
+        return value.toDate().getTime();
+    }
+
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? -1 : parsed.getTime();
 }
 
 function renderAdminSummary(entries, elements) {
@@ -1254,7 +1421,7 @@ function buildSummaryHighlight(title, items) {
     `;
 }
 
-function buildAdminCard(entry) {
+function buildAdminCard(entry, state) {
     const household = buildHouseholdName(entry);
     const guestCount = entry.guestCount && entry.guestCount !== '0' ? entry.guestCount : '--';
     const childrenCount = entry.childrenCount && entry.childrenCount !== '0' ? entry.childrenCount : '0';
@@ -1275,10 +1442,11 @@ function buildAdminCard(entry) {
             </div>
 
             <div class="admin-entry-toolbar">
-                <p class="admin-entry-toolbar-copy">Record the amount received in the bank account here, or remove this RSVP entirely if it was entered in error.</p>
+                <p class="admin-entry-toolbar-copy">Record the amount received in the bank account here, remove this RSVP if it was entered in error, or revoke the guest's website access directly from the same row.</p>
                 <div class="admin-entry-actions">
                     ${buildDonationForm(entry)}
-                    <button type="button" class="danger-button" data-delete-rsvp="${escapeHtml(entry.id)}" data-household="${escapeHtml(household)}">Delete RSVP</button>
+                    <button type="button" class="danger-button" data-delete-rsvp="${escapeHtml(entry.id)}" data-household="${escapeHtml(household)}">Delete RSVP Only</button>
+                    ${buildUserAccessAction(entry, state)}
                 </div>
             </div>
 
@@ -1300,7 +1468,7 @@ function buildAdminCard(entry) {
     `;
 }
 
-function buildAdminTableRow(entry) {
+function buildAdminTableRow(entry, state) {
     const household = buildHouseholdName(entry);
     const status = entry.attending === 'yes' ? 'Attending' : 'Declines';
     const partySize = entry.attending === 'yes'
@@ -1323,11 +1491,39 @@ function buildAdminTableRow(entry) {
             <td>${escapeHtml(formatTimestamp(entry.updatedAt || entry.submittedAt))}</td>
             <td>
                 <div class="admin-table-actions">
-                    <button type="button" class="danger-button" data-delete-rsvp="${escapeHtml(entry.id)}" data-household="${escapeHtml(household)}">Delete</button>
+                    <button type="button" class="danger-button" data-delete-rsvp="${escapeHtml(entry.id)}" data-household="${escapeHtml(household)}">Delete RSVP</button>
+                    ${buildUserAccessAction(entry, state)}
                 </div>
             </td>
         </tr>
     `;
+}
+
+function buildUserAccessAction(entry, state) {
+    const uid = entry.uid || entry.id || '';
+    const email = entry.email || '';
+    const name = buildHouseholdName(entry);
+    const isCurrentSession = uid === state.currentUser?.uid;
+    const isBootstrapAdmin = isBootstrapAdminEmail(email);
+    const isBlocked = isBlockedUserProfile({ uid }, state);
+
+    if (!uid) {
+        return '<span class="status-pill">No Account ID</span>';
+    }
+
+    if (isBlocked) {
+        return `<button type="button" class="inline-button" data-restore-user="${escapeHtml(uid)}" data-name="${escapeHtml(name)}">Restore Access</button>`;
+    }
+
+    if (isCurrentSession) {
+        return '<span class="status-pill status-pill-admin">Current Session</span>';
+    }
+
+    if (isBootstrapAdmin) {
+        return '<span class="status-pill">Protected</span>';
+    }
+
+    return `<button type="button" class="danger-button" data-remove-user="${escapeHtml(uid)}" data-email="${escapeHtml(email)}" data-name="${escapeHtml(name)}">Remove Access</button>`;
 }
 
 function buildDonationForm(entry) {
