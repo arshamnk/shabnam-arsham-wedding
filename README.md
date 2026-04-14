@@ -8,6 +8,7 @@ This is a static wedding website for GitHub Pages with:
 - an admin dashboard for reviewing all RSVP submissions
 - admin-only donation tracking and RSVP deletion controls
 - website-based promotion of verified users to admin access
+- website-based removal of verified users from site access
 
 ## Local Testing
 
@@ -58,6 +59,7 @@ The rules do four things:
 - normal guests can only read their own RSVP
 - admin users can read every RSVP
 - admin users can update the recorded donation amount and delete an RSVP
+- admin users can grant admin access and revoke website access for verified users
 
 ## Admin Setup
 
@@ -81,6 +83,8 @@ The configured email route is the simplest option for a single permanent admin.
 Once either admin path is in place, the verified account will see the admin dashboard instead of the guest RSVP page.
 
 After the initial bootstrap admin is in place, the admin dashboard can grant admin access to any verified user who has already signed in to the site. Those verified users appear in the website's `Access Control` list automatically.
+
+Removing a user from the website blocks their future access to protected content through this app and revokes any admin role they held here. It does not delete their Firebase Authentication account at the provider level, because that would require a backend admin service rather than a static frontend.
 
 ## RSVP Storage Model
 

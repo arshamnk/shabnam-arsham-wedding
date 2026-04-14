@@ -5,18 +5,31 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.email_verified == true;
     }
 
+    function isSignedInUser(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    function isBlocked(userId) {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/blockedUsers/$(userId));
+    }
+
+    function canUseSite() {
+      return signedInAndVerified() && !isBlocked(request.auth.uid);
+    }
+
     function isBootstrapAdmin() {
-      return signedInAndVerified()
+      return canUseSite()
         && request.auth.token.email == 'antiret@gmail.com';
     }
 
     function isCurrentUser(userId) {
-      return signedInAndVerified() && request.auth.uid == userId;
+      return canUseSite() && request.auth.uid == userId;
     }
 
     function isAdmin() {
       return isBootstrapAdmin() ||
-        (signedInAndVerified() &&
+        (canUseSite() &&
           exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
     }
 
@@ -56,7 +69,7 @@ service cloud.firestore {
       allow get: if isAdmin() || isCurrentUser(userId);
       allow list: if isAdmin();
       allow create, update: if isAdminGrantWrite(userId);
-      allow delete: if false;
+      allow delete: if isAdmin();
     }
 
     match /profiles/{userId} {
@@ -64,6 +77,12 @@ service cloud.firestore {
       allow list: if isAdmin();
       allow create, update: if isProfileWrite(userId);
       allow delete: if false;
+    }
+
+    match /blockedUsers/{userId} {
+      allow get: if isAdmin() || isSignedInUser(userId);
+      allow list: if isAdmin();
+      allow create, update, delete: if isAdmin();
     }
 
     match /rsvps/{userId} {

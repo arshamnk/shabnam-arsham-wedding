@@ -40,10 +40,12 @@ document.addEventListener('DOMContentLoaded', () => {
         adminRsvpUnsubscribe: null,
         adminProfilesUnsubscribe: null,
         adminRolesUnsubscribe: null,
+        adminBlockedUnsubscribe: null,
         existingRsvp: null,
         adminEntries: [],
         verifiedProfiles: [],
         grantedAdmins: [],
+        blockedUsers: [],
         adminViewMode: 'summary',
         bankDetailsVisible: false
     };
@@ -180,6 +182,7 @@ async function syncSession(user, state, elements) {
         state.adminEntries = [];
         state.verifiedProfiles = [];
         state.grantedAdmins = [];
+        state.blockedUsers = [];
         state.adminViewMode = 'summary';
         renderAdminEntries(state.adminEntries, state, elements);
         elements.authStatusBar.classList.add('hidden');
@@ -208,6 +211,18 @@ async function syncSession(user, state, elements) {
     }
 
     elements.verificationGate.classList.add('hidden');
+
+    try {
+        const blockedSnapshot = await getDoc(doc(state.db, 'blockedUsers', user.uid));
+        if (blockedSnapshot.exists()) {
+            await signOut(state.auth);
+            setBanner(elements, 'Your access to this site has been removed. Please contact the couple if this seems incorrect.', 'error');
+            return;
+        }
+    } catch (error) {
+        setBanner(elements, friendlyErrorMessage(error), 'error');
+        return;
+    }
 
     try {
         await ensureVerifiedProfile(user, state);
@@ -302,6 +317,13 @@ function bindProtectedInteractions(state, elements) {
 
         if (grantAdminButton) {
             handleGrantAdmin(grantAdminButton, state, elements);
+            return;
+        }
+
+        const removeUserButton = event.target.closest('[data-remove-user]');
+
+        if (removeUserButton) {
+            handleRemoveUser(removeUserButton, state, elements);
             return;
         }
 
@@ -680,6 +702,55 @@ async function handleGrantAdmin(grantButton, state, elements) {
     }
 }
 
+async function handleRemoveUser(removeButton, state, elements) {
+    if (!state.isAdmin) {
+        setBanner(elements, 'Admin access is required to remove users.', 'error');
+        return;
+    }
+
+    const targetUid = removeButton.dataset.removeUser;
+    const targetEmail = removeButton.dataset.email || '';
+    const targetName = removeButton.dataset.name || targetEmail || 'this user';
+
+    if (targetUid === state.currentUser?.uid) {
+        setBanner(elements, 'You cannot remove the account you are currently using.', 'error');
+        return;
+    }
+
+    if (isBootstrapAdminEmail(targetEmail)) {
+        setBanner(elements, 'That fixed admin account cannot be removed from the website.', 'error');
+        return;
+    }
+
+    const confirmed = window.confirm(`Remove ${targetName} from the site? This will revoke their access and any admin role they currently have.`);
+
+    if (!confirmed) {
+        return;
+    }
+
+    const restore = setBusy(removeButton, 'Removing...');
+
+    try {
+        await setDoc(doc(state.db, 'blockedUsers', targetUid), {
+            uid: targetUid,
+            email: targetEmail,
+            displayName: targetName,
+            blockedAt: serverTimestamp(),
+            blockedBy: state.currentUser?.uid || ''
+        }, { merge: true });
+
+        if (isGrantedAdminProfile({ uid: targetUid }, state)) {
+            await deleteDoc(doc(state.db, 'admins', targetUid));
+        }
+
+        setBanner(elements, `${targetName} has been removed from the website.`, 'success');
+    } catch (error) {
+        setBanner(elements, friendlyErrorMessage(error), 'error');
+    } finally {
+        restore();
+    }
+}
+
 function bindFormVisibilityHandlers(elements) {
     elements.attendingRadios.forEach((radio) => {
         radio.addEventListener('change', () => {
@@ -879,13 +950,25 @@ function subscribeToAdminData(state, elements) {
     }, (error) => {
         setBanner(elements, friendlyErrorMessage(error), 'error');
     });
+
+    state.adminBlockedUnsubscribe = onSnapshot(collection(state.db, 'blockedUsers'), (snapshot) => {
+        state.blockedUsers = snapshot.docs.map((entry) => ({
+            id: entry.id,
+            ...entry.data()
+        }));
+
+        renderAdminEntries(state.adminEntries, state, elements);
+    }, (error) => {
+        setBanner(elements, friendlyErrorMessage(error), 'error');
+    });
 }
 
 function clearAdminSubscriptions(state) {
     [
         state.adminRsvpUnsubscribe,
         state.adminProfilesUnsubscribe,
-        state.adminRolesUnsubscribe
+        state.adminRolesUnsubscribe,
+        state.adminBlockedUnsubscribe
     ].forEach((unsubscribe) => {
         if (typeof unsubscribe === 'function') {
             unsubscribe();
@@ -895,6 +978,7 @@ function clearAdminSubscriptions(state) {
     state.adminRsvpUnsubscribe = null;
     state.adminProfilesUnsubscribe = null;
     state.adminRolesUnsubscribe = null;
+    state.adminBlockedUnsubscribe = null;
 }
 
 function renderAdminEntries(entries, state, elements) {
@@ -914,7 +998,7 @@ function renderAdminEntries(entries, state, elements) {
 }
 
 function renderAdminAccess(state, elements) {
-    const profiles = state.verifiedProfiles || [];
+    const profiles = (state.verifiedProfiles || []).filter((profile) => !isBlockedUserProfile(profile, state));
 
     if (!profiles.length) {
         elements.adminAccessEmptyState.classList.remove('hidden');
@@ -930,10 +1014,14 @@ function buildAdminAccessRow(profile, state) {
     const isGrantedAdmin = isGrantedAdminProfile(profile, state);
     const isBootstrapAdmin = isBootstrapAdminEmail(profile.email);
     const isAnyAdmin = isGrantedAdmin || isBootstrapAdmin;
+    const isCurrentSession = (profile.uid || profile.id) === state.currentUser?.uid;
     const statusLabel = isBootstrapAdmin ? 'Fixed Admin' : (isGrantedAdmin ? 'Admin Granted' : 'Verified User');
     const buttonMarkup = isAnyAdmin
         ? '<span class="status-pill status-pill-admin">Already Admin</span>'
         : `<button type="button" class="inline-button" data-grant-admin="${escapeHtml(profile.uid || profile.id)}" data-email="${escapeHtml(profile.email || '')}" data-name="${escapeHtml(profile.displayName || profile.email || 'Verified user')}">Make Admin</button>`;
+    const removeMarkup = (isBootstrapAdmin || isCurrentSession)
+        ? `<span class="status-pill ${isCurrentSession ? 'status-pill-admin' : ''}">${escapeHtml(isCurrentSession ? 'Current Session' : 'Protected')}</span>`
+        : `<button type="button" class="danger-button" data-remove-user="${escapeHtml(profile.uid || profile.id)}" data-email="${escapeHtml(profile.email || '')}" data-name="${escapeHtml(profile.displayName || profile.email || 'Verified user')}">Remove User</button>`;
 
     return `
         <article class="admin-access-row">
@@ -945,6 +1033,7 @@ function buildAdminAccessRow(profile, state) {
             <div class="admin-access-actions">
                 <span class="status-pill ${isAnyAdmin ? 'status-pill-admin' : ''}">${escapeHtml(statusLabel)}</span>
                 ${buttonMarkup}
+                ${removeMarkup}
             </div>
         </article>
     `;
@@ -958,6 +1047,11 @@ function isGrantedAdminProfile(profile, state) {
 function isBootstrapAdminEmail(email) {
     const configuredAdminEmails = (appConfig.adminEmails || []).map((entry) => entry.trim().toLowerCase());
     return configuredAdminEmails.includes((email || '').trim().toLowerCase());
+}
+
+function isBlockedUserProfile(profile, state) {
+    const uid = profile.uid || profile.id;
+    return (state.blockedUsers || []).some((entry) => (entry.uid || entry.id) === uid);
 }
 
 function renderAdminSummary(entries, elements) {
