@@ -192,6 +192,7 @@ async function syncSession(user, state, elements) {
     updateBankDetailsVisibility(state, elements);
     clearAdminSubscriptions(state);
     hideSuccessMessage(elements);
+    let accessChecksLimited = false;
 
     if (!user) {
         setPrivateSectionVisibility(false, elements);
@@ -246,9 +247,7 @@ async function syncSession(user, state, elements) {
             return 'blocked';
         }
     } catch (error) {
-        setPrivateSectionVisibility(false, elements);
-        setBanner(elements, friendlyErrorMessage(error, 'session'), 'error');
-        return 'error';
+        accessChecksLimited = true;
     }
 
     setPrivateSectionVisibility(true, elements);
@@ -262,12 +261,8 @@ async function syncSession(user, state, elements) {
     try {
         state.isAdmin = await isAdminUser(user, state);
     } catch (error) {
+        accessChecksLimited = true;
         state.isAdmin = isBootstrapAdminEmail(user.email || '');
-        if (state.isAdmin) {
-            setBanner(elements, 'Admin access is available, but some account checks could not be refreshed. If anything looks stale, publish the latest Firestore rules in Firebase.', 'info');
-        } else {
-            setBanner(elements, 'Your account is verified, but we could not fully refresh your access checks. Guest access is still available.', 'info');
-        }
     }
 
     if (state.isAdmin) {
@@ -277,7 +272,13 @@ async function syncSession(user, state, elements) {
         elements.adminView.classList.remove('hidden');
         elements.openGuestAreaButton.classList.add('hidden');
         elements.openDashboardButton.classList.remove('hidden');
-        setBanner(elements, 'Verified admin access enabled. RSVP submissions are shown below.', 'success');
+        setBanner(
+            elements,
+            accessChecksLimited
+                ? 'Verified admin access enabled. The dashboard is available, although some access checks could not be fully refreshed just now.'
+                : 'Verified admin access enabled. RSVP submissions are shown below.',
+            'success'
+        );
         renderAdminEntries(state.adminEntries, state, elements);
         subscribeToAdminData(state, elements);
         openAdminDashboard('summary', state, elements);
