@@ -83,6 +83,8 @@ function getElements() {
         authView: document.getElementById('authView'),
         guestView: document.getElementById('guestView'),
         adminView: document.getElementById('adminView'),
+        adminDashboardTitle: document.getElementById('adminDashboardTitle'),
+        adminAccessPanel: document.getElementById('adminAccessPanel'),
         adminList: document.getElementById('adminList'),
         adminTableBody: document.getElementById('adminTableBody'),
         adminAccessList: document.getElementById('adminAccessList'),
@@ -112,7 +114,9 @@ function getElements() {
         resendVerificationButton: document.getElementById('resendVerificationButton'),
         recheckVerificationButton: document.getElementById('recheckVerificationButton'),
         refreshSessionButton: document.getElementById('refreshSessionButton'),
+        openDashboardButton: document.getElementById('openDashboardButton'),
         signOutButtons: Array.from(document.querySelectorAll('[data-action="sign-out"]')),
+        adminJumpButtons: Array.from(document.querySelectorAll('[data-admin-jump]')),
         toggleBankDetailsButton: document.getElementById('toggleBankDetailsButton'),
         sensitiveBankDetails: document.getElementById('sensitiveBankDetails'),
         rsvpForm: document.getElementById('rsvpForm'),
@@ -190,6 +194,7 @@ async function syncSession(user, state, elements) {
         elements.verificationGate.classList.add('hidden');
         elements.guestView.classList.add('hidden');
         elements.adminView.classList.add('hidden');
+        elements.openDashboardButton.classList.add('hidden');
         resetRsvpForm(elements, null);
         switchAuthTab('sign-in', elements);
         return;
@@ -205,6 +210,7 @@ async function syncSession(user, state, elements) {
         elements.verificationGate.classList.remove('hidden');
         elements.guestView.classList.add('hidden');
         elements.adminView.classList.add('hidden');
+        elements.openDashboardButton.classList.add('hidden');
         elements.verificationEmail.textContent = user.email || '';
         setBanner(elements, 'Verify your email before protected content, bank details, and RSVP submissions become available. Please check your spam folder as well as your inbox.', 'info');
         return;
@@ -239,17 +245,22 @@ async function syncSession(user, state, elements) {
     }
 
     if (state.isAdmin) {
+        elements.authStatusText.textContent = `Signed in as ${user.email} with admin access`;
         elements.authView.classList.add('hidden');
         elements.guestView.classList.add('hidden');
         elements.adminView.classList.remove('hidden');
+        elements.openDashboardButton.classList.remove('hidden');
         setBanner(elements, 'Verified admin access enabled. RSVP submissions are shown below.', 'success');
         renderAdminEntries(state.adminEntries, state, elements);
         subscribeToAdminData(state, elements);
+        openAdminDashboard('summary', state, elements);
         return;
     }
 
+    elements.authStatusText.textContent = `Signed in as ${user.email}`;
     elements.authView.classList.add('hidden');
     elements.adminView.classList.add('hidden');
+    elements.openDashboardButton.classList.add('hidden');
     elements.guestView.classList.remove('hidden');
     setBanner(elements, 'You are signed in with a verified email address. The protected RSVP form and wedding fund details are now visible.', 'success');
     await loadGuestRsvp(state, elements, user);
@@ -290,6 +301,10 @@ function bindProtectedInteractions(state, elements) {
         button.addEventListener('click', () => handleSignOut(state, elements));
     });
 
+    elements.openDashboardButton.addEventListener('click', () => {
+        openAdminDashboard('summary', state, elements);
+    });
+
     elements.toggleBankDetailsButton.addEventListener('click', () => {
         state.bankDetailsVisible = !state.bankDetailsVisible;
         updateBankDetailsVisibility(state, elements);
@@ -299,6 +314,12 @@ function bindProtectedInteractions(state, elements) {
         button.addEventListener('click', () => {
             state.adminViewMode = button.dataset.adminView || 'summary';
             applyAdminView(state.adminViewMode, elements);
+        });
+    });
+
+    elements.adminJumpButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+            openAdminDashboard(button.dataset.adminJump || 'summary', state, elements);
         });
     });
 
@@ -1110,6 +1131,49 @@ function applyAdminView(mode, elements) {
     elements.adminSummaryView.classList.toggle('hidden', normalizedMode !== 'summary');
     elements.adminResponsesView.classList.toggle('hidden', normalizedMode !== 'responses');
     elements.adminTableView.classList.toggle('hidden', normalizedMode !== 'table');
+}
+
+function openAdminDashboard(target, state, elements) {
+    if (!state.isAdmin) {
+        return;
+    }
+
+    const normalizedTarget = ['access', 'summary', 'responses', 'table'].includes(target) ? target : 'summary';
+
+    if (normalizedTarget !== 'access') {
+        state.adminViewMode = normalizedTarget;
+        applyAdminView(state.adminViewMode, elements);
+    }
+
+    const scrollTarget = getAdminScrollTarget(normalizedTarget, elements);
+
+    window.requestAnimationFrame(() => {
+        scrollTarget.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+        });
+
+        if (normalizedTarget === 'access') {
+            elements.adminAccessPanel?.focus?.({ preventScroll: true });
+            return;
+        }
+
+        elements.adminDashboardTitle?.focus?.({ preventScroll: true });
+    });
+}
+
+function getAdminScrollTarget(target, elements) {
+    switch (target) {
+    case 'access':
+        return elements.adminAccessPanel || elements.adminView;
+    case 'responses':
+        return elements.adminResponsesView || elements.adminView;
+    case 'table':
+        return elements.adminTableView || elements.adminView;
+    case 'summary':
+    default:
+        return elements.adminView;
+    }
 }
 
 function buildSummaryCard(title, value, copy) {
