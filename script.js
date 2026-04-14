@@ -206,7 +206,7 @@ async function syncSession(user, state, elements) {
         elements.guestView.classList.add('hidden');
         elements.adminView.classList.add('hidden');
         elements.verificationEmail.textContent = user.email || '';
-        setBanner(elements, 'Verify your email before protected content, bank details, and RSVP submissions become available.', 'info');
+        setBanner(elements, 'Verify your email before protected content, bank details, and RSVP submissions become available. Please check your spam folder as well as your inbox.', 'info');
         return;
     }
 
@@ -407,7 +407,7 @@ async function handleSignUp(event, state, elements) {
         await sendEmailVerification(credential.user);
         elements.signUpPassword.value = '';
         elements.signUpPasswordConfirm.value = '';
-        setBanner(elements, 'Account created. Please check your inbox and click the verification link before continuing.', 'success');
+        setBanner(elements, 'Account created. Please check your inbox and spam folder, then click the verification link before continuing.', 'success');
     } catch (error) {
         setBanner(elements, friendlyErrorMessage(error), 'error');
     } finally {
@@ -424,7 +424,7 @@ async function resendVerification(state, elements) {
 
     try {
         await sendEmailVerification(state.currentUser);
-        setBanner(elements, 'A fresh verification email has been sent.', 'success');
+        setBanner(elements, 'A fresh verification email has been sent. Please check your inbox and spam folder.', 'success');
     } catch (error) {
         setBanner(elements, friendlyErrorMessage(error), 'error');
     } finally {
