@@ -621,14 +621,14 @@ function renderGuestSubmissionState(state, elements, user) {
 
     const firstName = state.existingRsvp?.firstName || splitName('', '', user?.displayName || '').firstName || 'there';
     const recordedCopy = state.existingRsvp?.attending === 'yes'
-        ? `Thank you, ${firstName}. We are so grateful to have your response on file and cannot wait to celebrate with you.`
-        : `Thank you, ${firstName}. We are very grateful to have your response on file and appreciate you letting us know.`;
+        ? `${firstName}, your response is on file. We cannot wait to celebrate with you.`
+        : `${firstName}, your response is on file. We appreciate you letting us know.`;
     elements.rsvpPanelTitle.textContent = 'Your Response Has Been Recorded';
-    elements.rsvpPanelIntro.textContent = 'Thank you very much for replying. We have safely recorded your response and there is nothing further you need to do here.';
+    elements.rsvpPanelIntro.textContent = 'We have safely recorded your response and there is nothing further you need to do here.';
     showSuccessMessage(
         elements,
         {
-            heading: 'Thank You',
+            heading: 'RSVP Received',
             message: recordedCopy,
             note: 'If you would also like to mark the occasion with a contribution, the wedding fund details remain available alongside this message, though please feel no pressure at all.'
         }
@@ -686,7 +686,7 @@ async function handleRsvpSubmit(event, state, elements) {
     try {
         await setDoc(doc(state.db, 'rsvps', state.currentUser.uid), payload);
         await loadGuestRsvp(state, elements, state.currentUser);
-        setBanner(elements, 'Your RSVP has been received. Thank you very much for replying.', 'success');
+        setBanner(elements, 'Your RSVP has been received and recorded.', 'success');
     } catch (error) {
         setBanner(elements, friendlyErrorMessage(error, 'guest-rsvp-save'), 'error');
     } finally {
@@ -1793,7 +1793,7 @@ function showSuccessMessage(elements, content) {
         : (content || {});
 
     elements.successMessageHeading.textContent = config.heading || 'Your Response Has Been Recorded';
-    elements.successMessageText.textContent = config.message || 'Thank you for replying. Your response is safely on file.';
+    elements.successMessageText.textContent = config.message || 'Your response is safely on file.';
     elements.successMessageNote.textContent = config.note || '';
     elements.successMessageNote.classList.toggle('hidden', !config.note);
     elements.successMessage.classList.remove('hidden');
@@ -1801,7 +1801,7 @@ function showSuccessMessage(elements, content) {
 
 function hideSuccessMessage(elements) {
     elements.successMessageHeading.textContent = 'Your Response Has Been Recorded';
-    elements.successMessageText.textContent = 'Thank you for replying. Your response is safely on file.';
+    elements.successMessageText.textContent = 'Your response is safely on file.';
     elements.successMessageNote.textContent = '';
     elements.successMessageNote.classList.add('hidden');
     elements.successMessage.classList.add('hidden');
