@@ -373,6 +373,13 @@ function bindProtectedInteractions(state, elements) {
             return;
         }
 
+        const revokeAdminButton = event.target.closest('[data-revoke-admin]');
+
+        if (revokeAdminButton) {
+            handleRevokeAdmin(revokeAdminButton, state, elements);
+            return;
+        }
+
         const removeUserButton = event.target.closest('[data-remove-user]');
 
         if (removeUserButton) {
@@ -781,6 +788,41 @@ async function handleGrantAdmin(grantButton, state, elements) {
     }
 }
 
+async function handleRevokeAdmin(revokeButton, state, elements) {
+    if (!state.isAdmin || !isBootstrapCurrentAdmin(state)) {
+        setBanner(elements, 'Only antiret@gmail.com can revoke admin status.', 'error');
+        return;
+    }
+
+    const targetUid = revokeButton.dataset.revokeAdmin;
+    const targetEmail = revokeButton.dataset.email || '';
+    const targetName = revokeButton.dataset.name || targetEmail || 'this admin';
+
+    if (targetUid === state.currentUser?.uid || isBootstrapAdminEmail(targetEmail)) {
+        setBanner(elements, 'That admin role cannot be revoked from this account.', 'error');
+        return;
+    }
+
+    const confirmed = window.confirm(`Revoke admin status for ${targetName}? They will keep normal website access unless you remove it separately.`);
+
+    if (!confirmed) {
+        return;
+    }
+
+    const restore = setBusy(revokeButton, 'Revoking...');
+
+    try {
+        await deleteDoc(doc(state.db, 'admins', targetUid));
+        state.grantedAdmins = state.grantedAdmins.filter((entry) => (entry.uid || entry.id) !== targetUid);
+        renderAdminEntries(state.adminEntries, state, elements);
+        setBanner(elements, `${targetName} no longer has admin access.`, 'success');
+    } catch (error) {
+        setBanner(elements, friendlyErrorMessage(error, 'admin-action'), 'error');
+    } finally {
+        restore();
+    }
+}
+
 async function handleRemoveUser(removeButton, state, elements) {
     if (!state.isAdmin) {
         setBanner(elements, 'Admin access is required to remove users.', 'error');
@@ -818,7 +860,7 @@ async function handleRemoveUser(removeButton, state, elements) {
             blockedBy: state.currentUser?.uid || ''
         }, { merge: true });
 
-        if (isGrantedAdminProfile({ uid: targetUid }, state)) {
+        if (isBootstrapCurrentAdmin(state) && isGrantedAdminProfile({ uid: targetUid }, state)) {
             await deleteDoc(doc(state.db, 'admins', targetUid));
         }
 
@@ -1157,6 +1199,7 @@ function buildAdminAccessRow(profile, state) {
     const isAnyAdmin = isGrantedAdmin || isBootstrapAdmin;
     const isCurrentSession = uid === state.currentUser?.uid;
     const isBlocked = isBlockedUserProfile(profile, state);
+    const canRevokeAdmin = isBootstrapCurrentAdmin(state) && isGrantedAdmin && !isBootstrapAdmin && !isCurrentSession;
     const statusLabel = isBlocked
         ? 'Access Removed'
         : isBootstrapAdmin
@@ -1173,6 +1216,9 @@ function buildAdminAccessRow(profile, state) {
         : isAnyAdmin
             ? '<span class="status-pill status-pill-admin">Already Admin</span>'
             : `<button type="button" class="inline-button" data-grant-admin="${escapeHtml(uid)}" data-email="${escapeHtml(email)}" data-name="${escapeHtml(profile.displayName || email || 'Verified user')}">Make Admin</button>`;
+    const revokeAdminMarkup = canRevokeAdmin
+        ? `<button type="button" class="ghost-button" data-revoke-admin="${escapeHtml(uid)}" data-email="${escapeHtml(email)}" data-name="${escapeHtml(profile.displayName || email || 'This admin')}">Revoke Admin</button>`
+        : '';
     const removeMarkup = isBlocked
         ? `<button type="button" class="inline-button" data-restore-user="${escapeHtml(uid)}" data-name="${escapeHtml(profile.displayName || email || 'This user')}">Restore Access</button>`
         : (isBootstrapAdmin || isCurrentSession)
@@ -1203,6 +1249,7 @@ function buildAdminAccessRow(profile, state) {
             <div class="admin-access-actions">
                 <span class="status-pill ${isAnyAdmin ? 'status-pill-admin' : ''}">${escapeHtml(statusLabel)}</span>
                 ${buttonMarkup}
+                ${revokeAdminMarkup}
                 ${clearRsvpMarkup}
                 ${removeMarkup}
             </div>
@@ -1293,6 +1340,10 @@ function isGrantedAdminProfile(profile, state) {
 function isBootstrapAdminEmail(email) {
     const configuredAdminEmails = (appConfig.adminEmails || []).map((entry) => entry.trim().toLowerCase());
     return configuredAdminEmails.includes((email || '').trim().toLowerCase());
+}
+
+function isBootstrapCurrentAdmin(state) {
+    return isBootstrapAdminEmail(state.currentUser?.email || '');
 }
 
 function isBlockedUserProfile(profile, state) {

@@ -69,7 +69,7 @@ service cloud.firestore {
       allow get: if isAdmin() || isCurrentUser(userId);
       allow list: if isAdmin();
       allow create, update: if isAdminGrantWrite(userId);
-      allow delete: if isAdmin();
+      allow delete: if isBootstrapAdmin();
     }
 
     match /profiles/{userId} {
