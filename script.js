@@ -387,6 +387,13 @@ function bindProtectedInteractions(state, elements) {
             return;
         }
 
+        const clearRsvpButton = event.target.closest('[data-clear-rsvp]');
+
+        if (clearRsvpButton) {
+            handleClearRsvp(clearRsvpButton, state, elements);
+            return;
+        }
+
         const deleteButton = event.target.closest('[data-delete-rsvp]');
 
         if (!deleteButton) {
@@ -854,6 +861,34 @@ async function handleRestoreUser(restoreButton, state, elements) {
     }
 }
 
+async function handleClearRsvp(clearButton, state, elements) {
+    if (!state.isAdmin) {
+        setBanner(elements, 'Admin access is required to clear RSVPs.', 'error');
+        return;
+    }
+
+    const targetUid = clearButton.dataset.clearRsvp;
+    const targetName = clearButton.dataset.name || 'this user';
+    const confirmed = window.confirm(`Clear the RSVP for ${targetName}? This removes their saved response but does not remove website access.`);
+
+    if (!confirmed) {
+        return;
+    }
+
+    const restore = setBusy(clearButton, 'Clearing...');
+
+    try {
+        await deleteDoc(doc(state.db, 'rsvps', targetUid));
+        state.adminEntries = state.adminEntries.filter((entry) => entry.id !== targetUid && (entry.uid || entry.id) !== targetUid);
+        renderAdminEntries(state.adminEntries, state, elements);
+        setBanner(elements, `Cleared the RSVP for ${targetName}.`, 'success');
+    } catch (error) {
+        setBanner(elements, friendlyErrorMessage(error, 'admin-action'), 'error');
+    } finally {
+        restore();
+    }
+}
+
 function bindFormVisibilityHandlers(elements) {
     elements.attendingRadios.forEach((radio) => {
         radio.addEventListener('change', () => {
@@ -1142,6 +1177,9 @@ function buildAdminAccessRow(profile, state) {
         : (isBootstrapAdmin || isCurrentSession)
         ? `<span class="status-pill ${isCurrentSession ? 'status-pill-admin' : ''}">${escapeHtml(isCurrentSession ? 'Current Session' : 'Protected')}</span>`
         : `<button type="button" class="danger-button" data-remove-user="${escapeHtml(uid)}" data-email="${escapeHtml(email)}" data-name="${escapeHtml(profile.displayName || email || 'Verified user')}">Remove Access</button>`;
+    const clearRsvpMarkup = profile.hasRsvp
+        ? `<button type="button" class="ghost-button" data-clear-rsvp="${escapeHtml(uid)}" data-name="${escapeHtml(profile.displayName || email || 'This user')}">Clear RSVP</button>`
+        : '';
     const provenanceCopy = profile.hasProfile
         ? `Last seen ${escapeHtml(formatTimestamp(profile.lastSeenAt))}`
         : profile.hasRsvp
@@ -1164,6 +1202,7 @@ function buildAdminAccessRow(profile, state) {
             <div class="admin-access-actions">
                 <span class="status-pill ${isAnyAdmin ? 'status-pill-admin' : ''}">${escapeHtml(statusLabel)}</span>
                 ${buttonMarkup}
+                ${clearRsvpMarkup}
                 ${removeMarkup}
             </div>
         </article>
