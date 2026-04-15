@@ -89,7 +89,7 @@ service cloud.firestore {
       allow get: if isAdmin() || isCurrentUser(userId);
       allow list: if isAdmin();
       allow create: if isGuestRsvpWrite(userId);
-      allow update: if isGuestRsvpWrite(userId) || isAdminDonationUpdate();
+      allow update: if isAdminDonationUpdate();
       allow delete: if isAdmin();
     }
   }

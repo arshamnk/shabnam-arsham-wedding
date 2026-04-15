@@ -178,8 +178,8 @@
                     </article>
                     <article class="rsvp-card">
                         <p class="card-eyebrow">RSVP Details</p>
-                        <h3>One Form Per Account</h3>
-                        <p>Your RSVP is tied to your verified login, so you can return later and update the same response rather than creating duplicates.</p>
+                        <h3>One Response Per Account</h3>
+                        <p>Your RSVP is tied to your verified login, so once a response has been recorded we will keep that submission on file for planning.</p>
                     </article>
                 </div>
 
@@ -226,8 +226,8 @@
                     </aside>
 
                     <div class="rsvp-form-panel" id="rsvp-form-panel">
-                        <h3 class="panel-title">RSVP</h3>
-                        <p class="panel-intro">Please respond by the date provided in your invitation. If you are attending, do also let us know whether you might want college accommodation.</p>
+                        <h3 id="rsvpPanelTitle" class="panel-title">RSVP</h3>
+                        <p id="rsvpPanelIntro" class="panel-intro">Please respond by the date provided in your invitation. If you are attending, do also let us know whether you might want college accommodation.</p>
 
                         <form id="rsvpForm" class="rsvp-form">
                             <div class="form-row">
@@ -356,8 +356,10 @@
 
                         <div id="successMessage" class="success-message hidden">
                             <div class="success-icon">✓</div>
-                            <h3>RSVP Saved</h3>
-                            <p id="successMessageText">Your RSVP has been received. We can&apos;t wait to celebrate with you.</p>
+                            <p class="card-eyebrow">Thank You</p>
+                            <h3 id="successMessageHeading">Your Response Has Been Recorded</h3>
+                            <p id="successMessageText">Thank you for replying. Your response is safely on file.</p>
+                            <p id="successMessageNote" class="success-message-note hidden">If you would also like to mark the occasion with a gift, the wedding fund details remain available alongside this message, though please feel no pressure at all.</p>
                         </div>
                     </div>
                 </div>

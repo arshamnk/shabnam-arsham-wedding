@@ -126,8 +126,12 @@ function getElements() {
         sensitiveBankDetails: document.getElementById('sensitiveBankDetails'),
         rsvpForm: document.getElementById('rsvpForm'),
         submitRsvpButton: document.getElementById('submitRsvpButton'),
+        rsvpPanelTitle: document.getElementById('rsvpPanelTitle'),
+        rsvpPanelIntro: document.getElementById('rsvpPanelIntro'),
         successMessage: document.getElementById('successMessage'),
+        successMessageHeading: document.getElementById('successMessageHeading'),
         successMessageText: document.getElementById('successMessageText'),
+        successMessageNote: document.getElementById('successMessageNote'),
         firstName: document.getElementById('firstName'),
         lastName: document.getElementById('lastName'),
         email: document.getElementById('email'),
@@ -564,11 +568,12 @@ async function loadGuestRsvp(state, elements, user) {
         if (!snapshot.exists()) {
             state.existingRsvp = null;
             resetRsvpForm(elements, user);
+            renderGuestSubmissionState(state, elements, user);
             return;
         }
 
         state.existingRsvp = snapshot.data();
-        populateRsvpForm(elements, user, state.existingRsvp);
+        renderGuestSubmissionState(state, elements, user);
     } catch (error) {
         setBanner(elements, friendlyErrorMessage(error, 'guest-rsvp-load'), 'error');
     }
@@ -584,31 +589,36 @@ function resetRsvpForm(elements, user) {
     prefillIdentityFields(elements, user);
     updateAttendingFields(false, elements);
     hideSuccessMessage(elements);
+    elements.rsvpForm.classList.remove('hidden');
     elements.submitRsvpButton.textContent = 'Save RSVP';
 }
 
-function populateRsvpForm(elements, user, data) {
-    const { firstName, lastName } = splitName(data.firstName, data.lastName, user?.displayName);
+function renderGuestSubmissionState(state, elements, user) {
+    const hasExistingRsvp = Boolean(state.existingRsvp);
 
-    elements.firstName.value = firstName;
-    elements.lastName.value = lastName;
-    elements.email.value = user?.email || data.email || '';
-    elements.phone.value = data.phone || '';
-    setRadioValue(elements.attendingRadios, data.attending || '');
-    updateAttendingFields(data.attending === 'yes', elements);
-    elements.guestCountField.value = data.guestCount || '1';
-    elements.childrenCountField.value = data.childrenCount || '0';
-    elements.guestNamesField.value = data.guestNames || '';
-    elements.childrenAgesField.value = data.childrenAges || '';
-    elements.dietaryField.value = data.dietary || '';
-    elements.accessibilityField.value = data.accessibility || '';
-    setRadioValue(elements.accommodationInterestFields, data.accommodationInterest || '');
-    updateAccommodationRequirements(elements);
-    elements.accommodationCountField.value = data.accommodationCount || '';
-    elements.songRequestField.value = data.songRequest || '';
-    elements.messageField.value = data.message || '';
-    updateGuestDetailsRequirements(elements);
-    elements.submitRsvpButton.textContent = 'Update RSVP';
+    elements.rsvpForm.classList.toggle('hidden', hasExistingRsvp);
+
+    if (!hasExistingRsvp) {
+        elements.rsvpPanelTitle.textContent = 'RSVP';
+        elements.rsvpPanelIntro.textContent = 'Please respond by the date provided in your invitation. If you are attending, do also let us know whether you might want college accommodation.';
+        hideSuccessMessage(elements);
+        return;
+    }
+
+    const firstName = state.existingRsvp?.firstName || splitName('', '', user?.displayName || '').firstName || 'there';
+    const recordedCopy = state.existingRsvp?.attending === 'yes'
+        ? `Thank you, ${firstName}. We are so grateful to have your response on file and cannot wait to celebrate with you.`
+        : `Thank you, ${firstName}. We are very grateful to have your response on file and appreciate you letting us know.`;
+    elements.rsvpPanelTitle.textContent = 'Your Response Has Been Recorded';
+    elements.rsvpPanelIntro.textContent = 'Thank you very much for replying. We have safely recorded your response and there is nothing further you need to do here.';
+    showSuccessMessage(
+        elements,
+        {
+            heading: 'Thank You',
+            message: recordedCopy,
+            note: 'If you would also like to mark the occasion with a contribution, the wedding fund details remain available alongside this message, though please feel no pressure at all.'
+        }
+    );
 }
 
 async function handleRsvpSubmit(event, state, elements) {
@@ -616,6 +626,12 @@ async function handleRsvpSubmit(event, state, elements) {
 
     if (!state.currentUser || !state.currentUser.emailVerified) {
         setBanner(elements, 'You must be signed in with a verified email address before saving an RSVP.', 'error');
+        return;
+    }
+
+    if (state.existingRsvp) {
+        renderGuestSubmissionState(state, elements, state.currentUser);
+        setBanner(elements, 'Your response has already been recorded. If anything important has changed, please contact the couple directly.', 'info');
         return;
     }
 
@@ -627,8 +643,7 @@ async function handleRsvpSubmit(event, state, elements) {
 
     const isAttending = attendingSelection.value === 'yes';
     const fullName = `${elements.firstName.value.trim()} ${elements.lastName.value.trim()}`.trim();
-    const isUpdate = Boolean(state.existingRsvp);
-    const restore = setBusy(elements.submitRsvpButton, isUpdate ? 'Updating RSVP...' : 'Saving RSVP...');
+    const restore = setBusy(elements.submitRsvpButton, 'Saving RSVP...');
 
     const payload = {
         uid: state.currentUser.uid,
@@ -650,20 +665,14 @@ async function handleRsvpSubmit(event, state, elements) {
         accommodationCount: isAttending ? elements.accommodationCountField.value : '',
         songRequest: isAttending ? elements.songRequestField.value.trim() : '',
         message: elements.messageField.value.trim(),
-        submittedAt: state.existingRsvp?.submittedAt || serverTimestamp(),
+        submittedAt: serverTimestamp(),
         updatedAt: serverTimestamp()
     };
 
     try {
-        await setDoc(doc(state.db, 'rsvps', state.currentUser.uid), payload, { merge: true });
+        await setDoc(doc(state.db, 'rsvps', state.currentUser.uid), payload);
         await loadGuestRsvp(state, elements, state.currentUser);
-        showSuccessMessage(
-            elements,
-            isUpdate
-                ? 'Your RSVP has been updated.'
-                : 'Your RSVP has been received. We can\'t wait to celebrate with you.'
-        );
-        setBanner(elements, isUpdate ? 'RSVP updated successfully.' : 'RSVP saved successfully.', 'success');
+        setBanner(elements, 'Your RSVP has been received. Thank you very much for replying.', 'success');
     } catch (error) {
         setBanner(elements, friendlyErrorMessage(error, 'guest-rsvp-save'), 'error');
     } finally {
@@ -1640,13 +1649,23 @@ function formatTimestamp(value) {
     });
 }
 
-function showSuccessMessage(elements, message) {
-    elements.successMessageText.textContent = message;
+function showSuccessMessage(elements, content) {
+    const config = typeof content === 'string'
+        ? { message: content }
+        : (content || {});
+
+    elements.successMessageHeading.textContent = config.heading || 'Your Response Has Been Recorded';
+    elements.successMessageText.textContent = config.message || 'Thank you for replying. Your response is safely on file.';
+    elements.successMessageNote.textContent = config.note || '';
+    elements.successMessageNote.classList.toggle('hidden', !config.note);
     elements.successMessage.classList.remove('hidden');
-    elements.successMessage.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 function hideSuccessMessage(elements) {
+    elements.successMessageHeading.textContent = 'Your Response Has Been Recorded';
+    elements.successMessageText.textContent = 'Thank you for replying. Your response is safely on file.';
+    elements.successMessageNote.textContent = '';
+    elements.successMessageNote.classList.add('hidden');
     elements.successMessage.classList.add('hidden');
 }
 
