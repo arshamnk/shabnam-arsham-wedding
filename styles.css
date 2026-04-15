@@ -165,8 +165,8 @@ h1, h2, h3, h4, h5, h6 {
 
 .details-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 40px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 28px;
     margin-top: 60px;
 }
 
@@ -181,7 +181,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .detail-card {
     background-color: var(--white);
-    padding: 40px 30px;
+    padding: 34px 24px;
     text-align: center;
     border-radius: 5px;
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
@@ -209,14 +209,15 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .detail-card h3 {
-    font-size: 1.8rem;
+    font-size: 1.55rem;
     color: var(--primary-color);
     margin-bottom: 10px;
 }
 
 .detail-card p {
     color: var(--text-light);
-    line-height: 1.8;
+    line-height: 1.7;
+    font-size: 0.96rem;
 }
 
 /* RSVP Section */
@@ -1419,6 +1420,10 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Responsive Design */
 @media (max-width: 900px) {
+    .details-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .rsvp-overview-grid {
         grid-template-columns: 1fr;
     }
@@ -1455,6 +1460,12 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 @media (max-width: 768px) {
+    .hero {
+        min-height: 82svh;
+        height: auto;
+        padding: 80px 0 72px;
+    }
+
     .couple-names {
         font-size: 3rem;
     }
@@ -1475,6 +1486,36 @@ h1, h2, h3, h4, h5, h6 {
         grid-template-columns: 1fr;
     }
 
+    .auth-status-bar {
+        padding: 18px 18px;
+    }
+
+    .status-actions,
+    .verification-actions {
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .status-actions .ghost-button,
+    .verification-actions .ghost-button,
+    .verification-actions .submit-button {
+        width: 100%;
+    }
+
+    .protected-shell {
+        margin-top: 0;
+    }
+
+    .protected-shell-header {
+        gap: 18px;
+    }
+
+    .rsvp-overview-grid {
+        gap: 16px;
+        margin: 28px 0 24px;
+    }
+
     .radio-group {
         flex-direction: column;
         gap: 15px;
@@ -1491,6 +1532,30 @@ h1, h2, h3, h4, h5, h6 {
 
     .rsvp-card {
         min-height: auto;
+        padding: 24px 22px;
+    }
+
+    .rsvp-card h3 {
+        font-size: 1.55rem;
+    }
+
+    .panel-intro,
+    .panel-note,
+    .rsvp-note-panel p {
+        line-height: 1.7;
+    }
+
+    .bank-details-card {
+        padding: 18px;
+    }
+
+    .bank-reveal-panel {
+        display: grid;
+        gap: 12px;
+    }
+
+    .bank-reveal-panel .ghost-button {
+        width: 100%;
     }
 
     .auth-card,
@@ -1546,8 +1611,32 @@ h1, h2, h3, h4, h5, h6 {
         padding: 60px 0;
     }
 
+    .wedding-location {
+        font-size: 1.02rem;
+    }
+
+    .venue-address {
+        font-size: 0.88rem;
+    }
+
+    .cta-button {
+        width: 100%;
+        max-width: 280px;
+        padding: 14px 24px;
+    }
+
     .auth-tabs,
     .admin-entry-grid {
         grid-template-columns: 1fr;
+    }
+
+    .auth-card,
+    .verification-gate,
+    .admin-panel,
+    .setup-notice,
+    .rsvp-note-panel,
+    .rsvp-form-panel {
+        padding-left: 18px;
+        padding-right: 18px;
     }
 }

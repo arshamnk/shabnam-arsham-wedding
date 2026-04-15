@@ -12,9 +12,9 @@ export const appConfig = {
     ],
     weddingFund: {
         bankName: 'Lloyds Bank',
-        accountName: 'Add account name',
-        sortCode: '00-00-00',
-        accountNumber: '00000000',
+        accountName: 'Arsham Nejad Kourki',
+        sortCode: '30-84-04',
+        accountNumber: '66861568',
         contactEmail: 'replace-me@example.com'
     }
 };
