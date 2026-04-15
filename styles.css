@@ -1223,16 +1223,18 @@ h1, h2, h3, h4, h5, h6 {
 
 .admin-table {
     width: 100%;
-    min-width: 960px;
+    min-width: 760px;
     border-collapse: collapse;
+    table-layout: fixed;
 }
 
 .admin-table th,
 .admin-table td {
-    padding: 18px 16px;
+    padding: 14px 12px;
     text-align: left;
     vertical-align: top;
     border-bottom: 1px solid rgba(139, 115, 85, 0.08);
+    font-size: 0.92rem;
 }
 
 .admin-table th {
@@ -1249,27 +1251,43 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .admin-table-guest {
-    min-width: 180px;
+    min-width: 150px;
 }
 
 .admin-table-meta {
     margin-top: 4px;
     color: var(--text-light);
-    font-size: 0.85rem;
+    font-size: 0.8rem;
+    line-height: 1.4;
 }
 
 .admin-table .admin-donation-form {
-    min-width: 210px;
+    min-width: 0;
 }
 
 .admin-table .admin-donation-form input {
-    min-width: 110px;
+    min-width: 0;
+}
+
+.admin-donation-form-compact {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.admin-donation-form-compact input {
+    width: 88px;
+}
+
+.admin-donation-form-compact label {
+    display: none;
 }
 
 .admin-table-actions {
     display: flex;
+    flex-wrap: wrap;
     align-items: flex-start;
-    gap: 10px;
+    gap: 8px;
 }
 
 /* Travel Section */

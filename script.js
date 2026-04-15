@@ -868,6 +868,7 @@ async function handleClearRsvp(clearButton, state, elements) {
     }
 
     const targetUid = clearButton.dataset.clearRsvp;
+    const rsvpDocId = clearButton.dataset.rsvpDocId || targetUid;
     const targetName = clearButton.dataset.name || 'this user';
     const confirmed = window.confirm(`Clear the RSVP for ${targetName}? This removes their saved response but does not remove website access.`);
 
@@ -878,8 +879,8 @@ async function handleClearRsvp(clearButton, state, elements) {
     const restore = setBusy(clearButton, 'Clearing...');
 
     try {
-        await deleteDoc(doc(state.db, 'rsvps', targetUid));
-        state.adminEntries = state.adminEntries.filter((entry) => entry.id !== targetUid && (entry.uid || entry.id) !== targetUid);
+        await deleteDoc(doc(state.db, 'rsvps', rsvpDocId));
+        state.adminEntries = state.adminEntries.filter((entry) => entry.id !== rsvpDocId && (entry.uid || entry.id) !== targetUid);
         renderAdminEntries(state.adminEntries, state, elements);
         setBanner(elements, `Cleared the RSVP for ${targetName}.`, 'success');
     } catch (error) {
@@ -1178,7 +1179,7 @@ function buildAdminAccessRow(profile, state) {
         ? `<span class="status-pill ${isCurrentSession ? 'status-pill-admin' : ''}">${escapeHtml(isCurrentSession ? 'Current Session' : 'Protected')}</span>`
         : `<button type="button" class="danger-button" data-remove-user="${escapeHtml(uid)}" data-email="${escapeHtml(email)}" data-name="${escapeHtml(profile.displayName || email || 'Verified user')}">Remove Access</button>`;
     const clearRsvpMarkup = profile.hasRsvp
-        ? `<button type="button" class="ghost-button" data-clear-rsvp="${escapeHtml(uid)}" data-name="${escapeHtml(profile.displayName || email || 'This user')}">Clear RSVP</button>`
+        ? `<button type="button" class="ghost-button" data-clear-rsvp="${escapeHtml(uid)}" data-rsvp-doc-id="${escapeHtml(profile.rsvpDocId || uid)}" data-name="${escapeHtml(profile.displayName || email || 'This user')}">Clear RSVP</button>`
         : '';
     const provenanceCopy = profile.hasProfile
         ? `Last seen ${escapeHtml(formatTimestamp(profile.lastSeenAt))}`
@@ -1259,6 +1260,7 @@ function mergeAdminAccessProfile(map, entry, source) {
         blockedAt: null,
         hasProfile: false,
         hasRsvp: false,
+        rsvpDocId: '',
         hasAdminRole: false,
         isBlocked: false
     };
@@ -1275,6 +1277,7 @@ function mergeAdminAccessProfile(map, entry, source) {
             : existing.blockedAt,
         hasProfile: existing.hasProfile || source === 'profile',
         hasRsvp: existing.hasRsvp || source === 'rsvp',
+        rsvpDocId: existing.rsvpDocId || (source === 'rsvp' ? (entry.id || entry.uid || '') : ''),
         hasAdminRole: existing.hasAdminRole || source === 'admin',
         isBlocked: existing.isBlocked || source === 'blocked'
     };
@@ -1519,12 +1522,8 @@ function buildAdminCard(entry, state) {
 function buildAdminTableRow(entry, state) {
     const household = buildHouseholdName(entry);
     const status = entry.attending === 'yes' ? 'Attending' : 'Declines';
-    const partySize = entry.attending === 'yes'
-        ? `${getAdultCount(entry)} adults, ${getChildCount(entry)} children`
-        : '--';
-    const accommodation = entry.accommodationInterest
-        ? `${capitalize(entry.accommodationInterest)}${entry.accommodationCount ? ` (${entry.accommodationCount})` : ''}`
-        : '--';
+    const partySize = formatPartySummary(entry);
+    const accommodation = formatAccommodationSummary(entry);
 
     return `
         <tr>
@@ -1535,32 +1534,33 @@ function buildAdminTableRow(entry, state) {
             <td>${escapeHtml(status)}</td>
             <td>${escapeHtml(partySize)}</td>
             <td>${escapeHtml(accommodation)}</td>
-            <td>${buildDonationForm(entry)}</td>
-            <td>${escapeHtml(formatTimestamp(entry.updatedAt || entry.submittedAt))}</td>
+            <td>${buildCompactDonationForm(entry)}</td>
+            <td>${escapeHtml(formatCompactTimestamp(entry.updatedAt || entry.submittedAt))}</td>
             <td>
                 <div class="admin-table-actions">
-                    <button type="button" class="danger-button" data-delete-rsvp="${escapeHtml(entry.id)}" data-household="${escapeHtml(household)}">Delete RSVP</button>
-                    ${buildUserAccessAction(entry, state)}
+                    <button type="button" class="danger-button" data-delete-rsvp="${escapeHtml(entry.id)}" data-household="${escapeHtml(household)}">Delete</button>
+                    ${buildUserAccessAction(entry, state, { compact: true })}
                 </div>
             </td>
         </tr>
     `;
 }
 
-function buildUserAccessAction(entry, state) {
+function buildUserAccessAction(entry, state, options = {}) {
     const uid = entry.uid || entry.id || '';
     const email = entry.email || '';
     const name = buildHouseholdName(entry);
     const isCurrentSession = uid === state.currentUser?.uid;
     const isBootstrapAdmin = isBootstrapAdminEmail(email);
     const isBlocked = isBlockedUserProfile({ uid }, state);
+    const isCompact = options.compact === true;
 
     if (!uid) {
         return '<span class="status-pill">No Account ID</span>';
     }
 
     if (isBlocked) {
-        return `<button type="button" class="inline-button" data-restore-user="${escapeHtml(uid)}" data-name="${escapeHtml(name)}">Restore Access</button>`;
+        return `<button type="button" class="inline-button" data-restore-user="${escapeHtml(uid)}" data-name="${escapeHtml(name)}">${isCompact ? 'Restore' : 'Restore Access'}</button>`;
     }
 
     if (isCurrentSession) {
@@ -1571,7 +1571,7 @@ function buildUserAccessAction(entry, state) {
         return '<span class="status-pill">Protected</span>';
     }
 
-    return `<button type="button" class="danger-button" data-remove-user="${escapeHtml(uid)}" data-email="${escapeHtml(email)}" data-name="${escapeHtml(name)}">Remove Access</button>`;
+    return `<button type="button" class="danger-button" data-remove-user="${escapeHtml(uid)}" data-email="${escapeHtml(email)}" data-name="${escapeHtml(name)}">${isCompact ? 'Block' : 'Remove Access'}</button>`;
 }
 
 function buildDonationForm(entry) {
@@ -1588,6 +1588,36 @@ function buildDonationForm(entry) {
             <button type="submit" class="inline-button">Save</button>
         </form>
     `;
+}
+
+function buildCompactDonationForm(entry) {
+    const household = buildHouseholdName(entry);
+    const donationValue = getDonationNumber(entry.donationAmount);
+    const inputValue = donationValue === null ? '' : donationValue.toFixed(2);
+
+    return `
+        <form class="admin-donation-form admin-donation-form-compact" data-donation-form="${escapeHtml(entry.id)}" data-household="${escapeHtml(household)}">
+            <input aria-label="Recorded gift for ${escapeHtml(household)}" id="donation-compact-${escapeHtml(entry.id)}" type="number" name="donationAmount" min="0" step="0.01" inputmode="decimal" placeholder="0.00" value="${escapeHtml(inputValue)}">
+            <button type="submit" class="inline-button">Save</button>
+        </form>
+    `;
+}
+
+function formatPartySummary(entry) {
+    if (entry.attending !== 'yes') {
+        return '--';
+    }
+
+    return `${getAdultCount(entry)}A ${getChildCount(entry)}C`;
+}
+
+function formatAccommodationSummary(entry) {
+    if (!entry.accommodationInterest) {
+        return '--';
+    }
+
+    const base = capitalize(entry.accommodationInterest);
+    return entry.accommodationCount ? `${base} ${entry.accommodationCount}` : base;
 }
 
 function detailPair(label, value) {
@@ -1683,6 +1713,24 @@ function formatTimestamp(value) {
         day: 'numeric',
         month: 'short',
         year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+function formatCompactTimestamp(value) {
+    if (!value) {
+        return '--';
+    }
+
+    const date = typeof value.toDate === 'function' ? value.toDate() : new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return '--';
+    }
+
+    return date.toLocaleString('en-GB', {
+        day: 'numeric',
+        month: 'short',
         hour: '2-digit',
         minute: '2-digit'
     });
