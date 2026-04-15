@@ -30,6 +30,31 @@ const REQUIRED_FIREBASE_KEYS = [
     'appId'
 ];
 
+const FIXED_HOST_RESPONSES = [
+    {
+        id: 'fixed-host-shabnam',
+        uid: 'fixed-host-shabnam',
+        firstName: 'Shabnam',
+        lastName: '',
+        displayName: 'Shabnam',
+        attending: 'yes',
+        guestCount: '1',
+        childrenCount: '0',
+        isFixedResponse: true
+    },
+    {
+        id: 'fixed-host-arsham',
+        uid: 'fixed-host-arsham',
+        firstName: 'Arsham',
+        lastName: '',
+        displayName: 'Arsham',
+        attending: 'yes',
+        guestCount: '1',
+        childrenCount: '0',
+        isFixedResponse: true
+    }
+];
+
 document.addEventListener('DOMContentLoaded', () => {
     const elements = getElements();
     const state = {
@@ -1175,19 +1200,28 @@ function clearAdminSubscriptions(state) {
 }
 
 function renderAdminEntries(entries, state, elements) {
-    elements.adminRsvpCount.textContent = String(entries.length);
-    renderAdminAccess(state, elements);
-    renderAdminSummary(entries, elements);
-    elements.adminList.innerHTML = entries.map((entry) => buildAdminCard(entry, state)).join('');
-    elements.adminTableBody.innerHTML = entries.map((entry) => buildAdminTableRow(entry, state)).join('');
+    const displayEntries = getDisplayAdminEntries(entries);
 
-    if (!entries.length) {
+    elements.adminRsvpCount.textContent = String(displayEntries.length);
+    renderAdminAccess(state, elements);
+    renderAdminSummary(displayEntries, elements);
+    elements.adminList.innerHTML = displayEntries.map((entry) => buildAdminCard(entry, state)).join('');
+    elements.adminTableBody.innerHTML = displayEntries.map((entry) => buildAdminTableRow(entry, state)).join('');
+
+    if (!displayEntries.length) {
         elements.adminEmptyState.classList.remove('hidden');
     } else {
         elements.adminEmptyState.classList.add('hidden');
     }
 
     applyAdminView(state.adminViewMode, elements);
+}
+
+function getDisplayAdminEntries(entries) {
+    return [
+        ...(entries || []),
+        ...FIXED_HOST_RESPONSES
+    ];
 }
 
 function renderAdminAccess(state, elements) {
@@ -1563,7 +1597,30 @@ function buildAdminCard(entry, state) {
     const guestCount = entry.guestCount && entry.guestCount !== '0' ? entry.guestCount : '--';
     const childrenCount = entry.childrenCount && entry.childrenCount !== '0' ? entry.childrenCount : '0';
     const status = entry.attending === 'yes' ? 'Attending' : 'Declines';
-    const submittedLabel = entry.updatedAt ? 'Updated' : 'Submitted';
+    const submittedLabel = entry.isFixedResponse
+        ? 'Included'
+        : entry.updatedAt
+            ? 'Updated'
+            : 'Submitted';
+    const submittedValue = entry.isFixedResponse
+        ? 'Counted automatically'
+        : formatTimestamp(entry.updatedAt || entry.submittedAt);
+    const toolbarMarkup = entry.isFixedResponse
+        ? `
+            <div class="admin-entry-toolbar">
+                <p class="admin-entry-toolbar-copy">Included automatically so the couple are counted in the adult attendance total. No RSVP details are required here.</p>
+            </div>
+        `
+        : `
+            <div class="admin-entry-toolbar">
+                <p class="admin-entry-toolbar-copy">Record the amount received in the bank account here, remove this RSVP if it was entered in error, or revoke the guest's website access directly from the same row.</p>
+                <div class="admin-entry-actions">
+                    ${buildDonationForm(entry)}
+                    <button type="button" class="danger-button" data-delete-rsvp="${escapeHtml(entry.id)}" data-household="${escapeHtml(household)}">Delete RSVP Only</button>
+                    ${buildUserAccessAction(entry, state)}
+                </div>
+            </div>
+        `;
 
     return `
         <article class="admin-entry">
@@ -1573,19 +1630,12 @@ function buildAdminCard(entry, state) {
                     <h4>${escapeHtml(household)}</h4>
                 </div>
                 <div class="admin-entry-meta">
-                    <div>${escapeHtml(entry.email || 'No email provided')}</div>
-                    <div>${submittedLabel} ${escapeHtml(formatTimestamp(entry.updatedAt || entry.submittedAt))}</div>
+                    <div>${escapeHtml(entry.isFixedResponse ? 'Fixed host entry' : (entry.email || 'No email provided'))}</div>
+                    <div>${escapeHtml(submittedLabel)} ${escapeHtml(submittedValue)}</div>
                 </div>
             </div>
 
-            <div class="admin-entry-toolbar">
-                <p class="admin-entry-toolbar-copy">Record the amount received in the bank account here, remove this RSVP if it was entered in error, or revoke the guest's website access directly from the same row.</p>
-                <div class="admin-entry-actions">
-                    ${buildDonationForm(entry)}
-                    <button type="button" class="danger-button" data-delete-rsvp="${escapeHtml(entry.id)}" data-household="${escapeHtml(household)}">Delete RSVP Only</button>
-                    ${buildUserAccessAction(entry, state)}
-                </div>
-            </div>
+            ${toolbarMarkup}
 
             <dl class="admin-entry-grid">
                 ${detailPair('Phone', entry.phone)}
@@ -1610,24 +1660,29 @@ function buildAdminTableRow(entry, state) {
     const status = entry.attending === 'yes' ? 'Attending' : 'Declines';
     const partySize = formatPartySummary(entry);
     const accommodation = formatAccommodationSummary(entry);
+    const giftCell = entry.isFixedResponse ? '<span class="status-pill">Host</span>' : buildCompactDonationForm(entry);
+    const actionCell = entry.isFixedResponse
+        ? '<span class="status-pill">Fixed Entry</span>'
+        : `
+                <div class="admin-table-actions">
+                    <button type="button" class="danger-button" data-delete-rsvp="${escapeHtml(entry.id)}" data-household="${escapeHtml(household)}">Delete</button>
+                    ${buildUserAccessAction(entry, state, { compact: true })}
+                </div>
+            `;
+    const whenValue = entry.isFixedResponse ? '--' : formatCompactTimestamp(entry.updatedAt || entry.submittedAt);
 
     return `
         <tr>
             <td class="admin-table-guest">
                 <strong>${escapeHtml(household)}</strong>
-                <div class="admin-table-meta">${escapeHtml(entry.email || 'No email provided')}</div>
+                <div class="admin-table-meta">${escapeHtml(entry.isFixedResponse ? 'Fixed host entry' : (entry.email || 'No email provided'))}</div>
             </td>
             <td>${escapeHtml(status)}</td>
             <td>${escapeHtml(partySize)}</td>
             <td>${escapeHtml(accommodation)}</td>
-            <td>${buildCompactDonationForm(entry)}</td>
-            <td>${escapeHtml(formatCompactTimestamp(entry.updatedAt || entry.submittedAt))}</td>
-            <td>
-                <div class="admin-table-actions">
-                    <button type="button" class="danger-button" data-delete-rsvp="${escapeHtml(entry.id)}" data-household="${escapeHtml(household)}">Delete</button>
-                    ${buildUserAccessAction(entry, state, { compact: true })}
-                </div>
-            </td>
+            <td>${giftCell}</td>
+            <td>${escapeHtml(whenValue)}</td>
+            <td>${actionCell}</td>
         </tr>
     `;
 }
