@@ -85,6 +85,7 @@ function getElements() {
         authStatusText: document.getElementById('authStatusText'),
         heroGuestLoginButton: document.getElementById('heroGuestLoginButton'),
         openGuestAreaButton: document.getElementById('openGuestAreaButton'),
+        openGuestPreviewButton: document.getElementById('openGuestPreviewButton'),
         authView: document.getElementById('authView'),
         guestView: document.getElementById('guestView'),
         guestAreaTitle: document.getElementById('guestAreaTitle'),
@@ -121,6 +122,7 @@ function getElements() {
         recheckVerificationButton: document.getElementById('recheckVerificationButton'),
         refreshSessionButton: document.getElementById('refreshSessionButton'),
         openDashboardButton: document.getElementById('openDashboardButton'),
+        returnToAdminViewButton: document.getElementById('returnToAdminViewButton'),
         signOutButtons: Array.from(document.querySelectorAll('[data-action="sign-out"]')),
         toggleBankDetailsButton: document.getElementById('toggleBankDetailsButton'),
         sensitiveBankDetails: document.getElementById('sensitiveBankDetails'),
@@ -214,7 +216,9 @@ async function syncSession(user, state, elements) {
         elements.guestView.classList.add('hidden');
         elements.adminView.classList.add('hidden');
         elements.openGuestAreaButton.classList.add('hidden');
+        elements.openGuestPreviewButton.classList.add('hidden');
         elements.openDashboardButton.classList.add('hidden');
+        elements.returnToAdminViewButton.classList.add('hidden');
         resetRsvpForm(elements, null);
         switchAuthTab('sign-in', elements);
         return 'logged-out';
@@ -233,7 +237,9 @@ async function syncSession(user, state, elements) {
         elements.guestView.classList.add('hidden');
         elements.adminView.classList.add('hidden');
         elements.openGuestAreaButton.classList.add('hidden');
+        elements.openGuestPreviewButton.classList.add('hidden');
         elements.openDashboardButton.classList.add('hidden');
+        elements.returnToAdminViewButton.classList.add('hidden');
         elements.verificationEmail.textContent = user.email || '';
         setBanner(elements, 'Verify your email before protected content, bank details, and RSVP submissions become available. Please check your spam folder as well as your inbox.', 'info');
         return 'verification-required';
@@ -271,10 +277,6 @@ async function syncSession(user, state, elements) {
     if (state.isAdmin) {
         elements.authStatusText.textContent = `Signed in as ${user.email} with admin access`;
         elements.authView.classList.add('hidden');
-        elements.guestView.classList.add('hidden');
-        elements.adminView.classList.remove('hidden');
-        elements.openGuestAreaButton.classList.add('hidden');
-        elements.openDashboardButton.classList.remove('hidden');
         setBanner(
             elements,
             accessChecksLimited
@@ -292,7 +294,9 @@ async function syncSession(user, state, elements) {
     elements.authView.classList.add('hidden');
     elements.adminView.classList.add('hidden');
     elements.openGuestAreaButton.classList.remove('hidden');
+    elements.openGuestPreviewButton.classList.add('hidden');
     elements.openDashboardButton.classList.add('hidden');
+    elements.returnToAdminViewButton.classList.add('hidden');
     elements.guestView.classList.remove('hidden');
     setBanner(elements, 'You are signed in with a verified email address. The protected RSVP form and wedding fund details are now visible.', 'success');
     await loadGuestRsvp(state, elements, user);
@@ -339,8 +343,16 @@ function bindProtectedInteractions(state, elements) {
         openGuestArea(elements);
     });
 
+    elements.openGuestPreviewButton.addEventListener('click', async () => {
+        await openGuestExperience(state, elements);
+    });
+
     elements.openDashboardButton.addEventListener('click', () => {
         openAdminDashboard('summary', state, elements);
+    });
+
+    elements.returnToAdminViewButton.addEventListener('click', () => {
+        openAdminDashboard(state.adminViewMode, state, elements);
     });
 
     elements.toggleBankDetailsButton.addEventListener('click', () => {
@@ -1454,6 +1466,13 @@ function openAdminDashboard(target, state, elements) {
         applyAdminView(state.adminViewMode, elements);
     }
 
+    elements.guestView.classList.add('hidden');
+    elements.adminView.classList.remove('hidden');
+    elements.openGuestAreaButton.classList.add('hidden');
+    elements.openGuestPreviewButton.classList.remove('hidden');
+    elements.openDashboardButton.classList.remove('hidden');
+    elements.returnToAdminViewButton.classList.add('hidden');
+
     const scrollTarget = getAdminScrollTarget(normalizedTarget, elements);
 
     window.requestAnimationFrame(() => {
@@ -1480,6 +1499,22 @@ function openGuestArea(elements) {
 
         elements.guestAreaTitle?.focus?.({ preventScroll: true });
     });
+}
+
+async function openGuestExperience(state, elements) {
+    if (state.isAdmin && state.currentUser) {
+        await loadGuestRsvp(state, elements, state.currentUser);
+        elements.adminView.classList.add('hidden');
+        elements.guestView.classList.remove('hidden');
+        elements.openGuestAreaButton.classList.add('hidden');
+        elements.openGuestPreviewButton.classList.remove('hidden');
+        elements.openDashboardButton.classList.remove('hidden');
+        elements.returnToAdminViewButton.classList.remove('hidden');
+        openGuestArea(elements);
+        return;
+    }
+
+    openGuestArea(elements);
 }
 
 function getAdminScrollTarget(target, elements) {

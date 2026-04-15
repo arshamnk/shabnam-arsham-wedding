@@ -83,6 +83,7 @@
                 </div>
                 <div class="status-actions">
                     <button type="button" id="openGuestAreaButton" class="ghost-button hidden">Open RSVP</button>
+                    <button type="button" id="openGuestPreviewButton" class="ghost-button hidden">Open Guest View</button>
                     <button type="button" id="openDashboardButton" class="ghost-button hidden">Open Admin Dashboard</button>
                     <button type="button" id="refreshSessionButton" class="ghost-button">Refresh Access</button>
                     <button type="button" id="signOutButton" class="ghost-button" data-action="sign-out">Log Out</button>
@@ -162,7 +163,10 @@
                         <h3 id="guestAreaTitle" class="panel-title" tabindex="-1">RSVP and Wedding Fund</h3>
                         <p class="panel-intro">Thank you for logging in. The RSVP form and protected payment details are shown below for verified guests only.</p>
                     </div>
-                    <button type="button" class="ghost-button" data-action="sign-out">Log Out</button>
+                    <div class="status-actions">
+                        <button type="button" id="returnToAdminViewButton" class="ghost-button hidden">Open Admin Dashboard</button>
+                        <button type="button" class="ghost-button" data-action="sign-out">Log Out</button>
+                    </div>
                 </div>
 
                 <div class="rsvp-overview-grid protected-overview-grid">
