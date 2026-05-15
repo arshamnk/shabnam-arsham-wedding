@@ -72,7 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
         grantedAdmins: [],
         blockedUsers: [],
         adminViewMode: 'summary',
-        adminEditMode: false,
+        adminEditingCards: new Set(),
         bankDetailsVisible: false
     };
 
@@ -130,7 +130,6 @@ function getElements() {
         adminViewButtons: Array.from(document.querySelectorAll('[data-admin-view]')),
         adminEmptyState: document.getElementById('adminEmptyState'),
         adminRsvpCount: document.getElementById('adminRsvpCount'),
-        toggleAdminEditModeButton: document.getElementById('toggleAdminEditModeButton'),
         setupNotice: document.getElementById('setupNotice'),
         verificationGate: document.getElementById('verificationGate'),
         verificationEmail: document.getElementById('verificationEmail'),
@@ -229,7 +228,7 @@ async function syncSession(user, state, elements) {
     if (!user) {
         setPrivateSectionVisibility(false, elements);
         state.isAdmin = false;
-        state.adminEditMode = false;
+        state.adminEditingCards = new Set();
         state.existingRsvp = null;
         state.adminEntries = [];
         state.verifiedProfiles = [];
@@ -260,7 +259,7 @@ async function syncSession(user, state, elements) {
 
     if (!user.emailVerified) {
         setPrivateSectionVisibility(false, elements);
-        state.adminEditMode = false;
+        state.adminEditingCards = new Set();
         elements.authView.classList.add('hidden');
         elements.verificationGate.classList.remove('hidden');
         elements.guestView.classList.add('hidden');
@@ -320,7 +319,7 @@ async function syncSession(user, state, elements) {
     }
 
     elements.authStatusText.textContent = `Signed in as ${user.email}`;
-    state.adminEditMode = false;
+    state.adminEditingCards = new Set();
     elements.authView.classList.add('hidden');
     elements.adminView.classList.add('hidden');
     elements.openGuestAreaButton.classList.remove('hidden');
@@ -397,23 +396,6 @@ function bindProtectedInteractions(state, elements) {
         });
     });
 
-    elements.toggleAdminEditModeButton?.addEventListener('click', () => {
-        if (!state.isAdmin) {
-            setBanner(elements, 'Admin access is required to edit RSVP details.', 'error');
-            return;
-        }
-
-        state.adminEditMode = !state.adminEditMode;
-        renderAdminEntries(state.adminEntries, state, elements);
-        setBanner(
-            elements,
-            state.adminEditMode
-                ? 'Admin edit mode is enabled. Review changes carefully before saving each response.'
-                : 'Admin edit mode is disabled.',
-            'info'
-        );
-    });
-
     elements.adminView.addEventListener('submit', (event) => {
         const adminEntryForm = event.target.closest('[data-admin-entry-form]');
 
@@ -424,6 +406,13 @@ function bindProtectedInteractions(state, elements) {
     });
 
     elements.adminView.addEventListener('click', (event) => {
+        const toggleCardEditButton = event.target.closest('[data-toggle-card-edit]');
+
+        if (toggleCardEditButton) {
+            toggleAdminCardEdit(toggleCardEditButton, state, elements);
+            return;
+        }
+
         const grantAdminButton = event.target.closest('[data-grant-admin]');
 
         if (grantAdminButton) {
@@ -760,11 +749,6 @@ async function handleAdminEntrySaveSubmit(event, adminEntryForm, state, elements
         return;
     }
 
-    if (!state.adminEditMode) {
-        setBanner(elements, 'Enable edit mode before saving response changes.', 'error');
-        return;
-    }
-
     const rsvpId = adminEntryForm.dataset.adminEntryForm;
     const household = adminEntryForm.dataset.household || 'this RSVP';
     const submitButton = adminEntryForm.querySelector('button[type="submit"]');
@@ -848,12 +832,34 @@ async function handleAdminEntrySaveSubmit(event, adminEntryForm, state, elements
 
     try {
         await updateDoc(doc(state.db, 'rsvps', rsvpId), payload);
+        state.adminEditingCards.delete(rsvpId);
+        renderAdminEntries(state.adminEntries, state, elements);
         setBanner(elements, `Saved response changes for ${household}.`, 'success');
     } catch (error) {
         setBanner(elements, friendlyErrorMessage(error, 'admin-action'), 'error');
     } finally {
         restore();
     }
+}
+
+function toggleAdminCardEdit(toggleButton, state, elements) {
+    if (!state.isAdmin) {
+        setBanner(elements, 'Admin access is required to edit RSVP details.', 'error');
+        return;
+    }
+
+    const rsvpId = toggleButton.dataset.toggleCardEdit;
+    if (!rsvpId) {
+        return;
+    }
+
+    if (state.adminEditingCards.has(rsvpId)) {
+        state.adminEditingCards.delete(rsvpId);
+    } else {
+        state.adminEditingCards.add(rsvpId);
+    }
+
+    renderAdminEntries(state.adminEntries, state, elements);
 }
 
 async function handleAdminDelete(deleteButton, state, elements) {
@@ -874,6 +880,7 @@ async function handleAdminDelete(deleteButton, state, elements) {
 
     try {
         await deleteDoc(doc(state.db, 'rsvps', rsvpId));
+        state.adminEditingCards.delete(rsvpId);
         state.adminEntries = state.adminEntries.filter((entry) => entry.id !== rsvpId);
         renderAdminEntries(state.adminEntries, state, elements);
         setBanner(elements, `Deleted the RSVP for ${household}.`, 'success');
@@ -1045,6 +1052,7 @@ async function handleClearRsvp(clearButton, state, elements) {
 
     try {
         await deleteDoc(doc(state.db, 'rsvps', rsvpDocId));
+        state.adminEditingCards.delete(rsvpDocId);
         state.adminEntries = state.adminEntries.filter((entry) => entry.id !== rsvpDocId && (entry.uid || entry.id) !== targetUid);
         renderAdminEntries(state.adminEntries, state, elements);
         setBanner(elements, `Cleared the RSVP for ${targetName}.`, 'success');
@@ -1289,7 +1297,6 @@ function renderAdminEntries(entries, state, elements) {
     const displayEntries = getDisplayAdminEntries(entries);
 
     elements.adminRsvpCount.textContent = String(displayEntries.length);
-    updateAdminEditModeButton(state, elements);
     renderAdminAccess(state, elements);
     renderAdminSummary(displayEntries, elements);
     elements.adminList.innerHTML = displayEntries.map((entry) => buildAdminCard(entry, state)).join('');
@@ -1302,17 +1309,6 @@ function renderAdminEntries(entries, state, elements) {
     }
 
     applyAdminView(state.adminViewMode, elements);
-}
-
-function updateAdminEditModeButton(state, elements) {
-    if (!elements.toggleAdminEditModeButton) {
-        return;
-    }
-
-    const isEnabled = state.adminEditMode === true;
-    elements.toggleAdminEditModeButton.textContent = isEnabled ? 'Disable Edit Mode' : 'Enable Edit Mode';
-    elements.toggleAdminEditModeButton.classList.toggle('inline-button', isEnabled);
-    elements.toggleAdminEditModeButton.classList.toggle('ghost-button', !isEnabled);
 }
 
 function getDisplayAdminEntries(entries) {
@@ -1692,10 +1688,11 @@ function buildSummaryHighlight(title, items) {
 
 function buildAdminCard(entry, state) {
     const household = buildHouseholdName(entry);
+    const entryId = entry.id || '';
     const guestCount = entry.guestCount && entry.guestCount !== '0' ? entry.guestCount : '--';
     const childrenCount = entry.childrenCount && entry.childrenCount !== '0' ? entry.childrenCount : '0';
     const status = entry.attending === 'yes' ? 'Attending' : 'Declines';
-    const isEditMode = state.adminEditMode === true && !entry.isFixedResponse;
+    const isEditMode = !entry.isFixedResponse && state.adminEditingCards.has(entryId);
     const submittedLabel = entry.isFixedResponse
         ? 'Included'
         : entry.updatedAt
@@ -1712,8 +1709,9 @@ function buildAdminCard(entry, state) {
         `
         : `
             <div class="admin-entry-toolbar">
-                <p class="admin-entry-toolbar-copy">${isEditMode ? 'Edit mode is active. Update any response fields below, then confirm with Save Changes.' : 'Enable edit mode to safely update response fields. Delete this RSVP if it was entered in error, or revoke website access from the same row.'}</p>
+                <p class="admin-entry-toolbar-copy">${isEditMode ? 'Editing is active for this response. Review changes and confirm with Save Changes.' : 'Use Edit Response to unlock fields on this card only. Delete this RSVP if it was entered in error, or revoke website access from the same row.'}</p>
                 <div class="admin-entry-actions">
+                    <button type="button" class="inline-button" data-toggle-card-edit="${escapeHtml(entryId)}">${isEditMode ? 'Cancel Edit' : 'Edit Response'}</button>
                     <button type="button" class="danger-button" data-delete-rsvp="${escapeHtml(entry.id)}" data-household="${escapeHtml(household)}">Delete RSVP Only</button>
                     ${buildUserAccessAction(entry, state)}
                 </div>
