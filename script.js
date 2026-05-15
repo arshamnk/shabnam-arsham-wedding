@@ -72,6 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
         grantedAdmins: [],
         blockedUsers: [],
         adminViewMode: 'summary',
+        adminEditMode: false,
         bankDetailsVisible: false
     };
 
@@ -129,6 +130,7 @@ function getElements() {
         adminViewButtons: Array.from(document.querySelectorAll('[data-admin-view]')),
         adminEmptyState: document.getElementById('adminEmptyState'),
         adminRsvpCount: document.getElementById('adminRsvpCount'),
+        toggleAdminEditModeButton: document.getElementById('toggleAdminEditModeButton'),
         setupNotice: document.getElementById('setupNotice'),
         verificationGate: document.getElementById('verificationGate'),
         verificationEmail: document.getElementById('verificationEmail'),
@@ -227,6 +229,7 @@ async function syncSession(user, state, elements) {
     if (!user) {
         setPrivateSectionVisibility(false, elements);
         state.isAdmin = false;
+        state.adminEditMode = false;
         state.existingRsvp = null;
         state.adminEntries = [];
         state.verifiedProfiles = [];
@@ -257,6 +260,7 @@ async function syncSession(user, state, elements) {
 
     if (!user.emailVerified) {
         setPrivateSectionVisibility(false, elements);
+        state.adminEditMode = false;
         elements.authView.classList.add('hidden');
         elements.verificationGate.classList.remove('hidden');
         elements.guestView.classList.add('hidden');
@@ -316,6 +320,7 @@ async function syncSession(user, state, elements) {
     }
 
     elements.authStatusText.textContent = `Signed in as ${user.email}`;
+    state.adminEditMode = false;
     elements.authView.classList.add('hidden');
     elements.adminView.classList.add('hidden');
     elements.openGuestAreaButton.classList.remove('hidden');
@@ -392,21 +397,30 @@ function bindProtectedInteractions(state, elements) {
         });
     });
 
+    elements.toggleAdminEditModeButton?.addEventListener('click', () => {
+        if (!state.isAdmin) {
+            setBanner(elements, 'Admin access is required to edit RSVP details.', 'error');
+            return;
+        }
+
+        state.adminEditMode = !state.adminEditMode;
+        renderAdminEntries(state.adminEntries, state, elements);
+        setBanner(
+            elements,
+            state.adminEditMode
+                ? 'Admin edit mode is enabled. Review changes carefully before saving each response.'
+                : 'Admin edit mode is disabled.',
+            'info'
+        );
+    });
+
     elements.adminView.addEventListener('submit', (event) => {
-        const adminRsvpForm = event.target.closest('[data-admin-rsvp-form]');
+        const adminEntryForm = event.target.closest('[data-admin-entry-form]');
 
-        if (adminRsvpForm) {
-            handleAdminRsvpEditSubmit(event, adminRsvpForm, state, elements);
+        if (adminEntryForm) {
+            handleAdminEntrySaveSubmit(event, adminEntryForm, state, elements);
             return;
         }
-
-        const donationForm = event.target.closest('[data-donation-form]');
-
-        if (!donationForm) {
-            return;
-        }
-
-        handleAdminDonationSubmit(event, donationForm, state, elements);
     });
 
     elements.adminView.addEventListener('click', (event) => {
@@ -738,46 +752,7 @@ async function handleRsvpSubmit(event, state, elements) {
     }
 }
 
-async function handleAdminDonationSubmit(event, donationForm, state, elements) {
-    event.preventDefault();
-
-    if (!state.isAdmin) {
-        setBanner(elements, 'Admin access is required to update donations.', 'error');
-        return;
-    }
-
-    const rsvpId = donationForm.dataset.donationForm;
-    const household = donationForm.dataset.household || 'this RSVP';
-    const input = donationForm.querySelector('input[name="donationAmount"]');
-    const submitButton = donationForm.querySelector('button[type="submit"]');
-    const rawValue = input.value.trim();
-
-    if (rawValue !== '') {
-        const parsed = Number.parseFloat(rawValue);
-
-        if (Number.isNaN(parsed) || parsed < 0) {
-            setBanner(elements, 'Please enter a valid donation amount or leave it blank.', 'error');
-            return;
-        }
-    }
-
-    const donationAmount = rawValue === '' ? null : Number.parseFloat(Number.parseFloat(rawValue).toFixed(2));
-    const restore = setBusy(submitButton, 'Saving...');
-
-    try {
-        await updateDoc(doc(state.db, 'rsvps', rsvpId), {
-            donationAmount,
-            donationUpdatedAt: serverTimestamp()
-        });
-        setBanner(elements, `Saved the recorded donation for ${household}.`, 'success');
-    } catch (error) {
-        setBanner(elements, friendlyErrorMessage(error, 'admin-action'), 'error');
-    } finally {
-        restore();
-    }
-}
-
-async function handleAdminRsvpEditSubmit(event, adminRsvpForm, state, elements) {
+async function handleAdminEntrySaveSubmit(event, adminEntryForm, state, elements) {
     event.preventDefault();
 
     if (!state.isAdmin) {
@@ -785,20 +760,26 @@ async function handleAdminRsvpEditSubmit(event, adminRsvpForm, state, elements) 
         return;
     }
 
-    const rsvpId = adminRsvpForm.dataset.adminRsvpForm;
-    const household = adminRsvpForm.dataset.household || 'this RSVP';
-    const submitButton = adminRsvpForm.querySelector('button[type="submit"]');
+    if (!state.adminEditMode) {
+        setBanner(elements, 'Enable edit mode before saving response changes.', 'error');
+        return;
+    }
+
+    const rsvpId = adminEntryForm.dataset.adminEntryForm;
+    const household = adminEntryForm.dataset.household || 'this RSVP';
+    const submitButton = adminEntryForm.querySelector('button[type="submit"]');
 
     if (!submitButton) {
         setBanner(elements, 'Could not find the RSVP save button for this row.', 'error');
         return;
     }
 
-    const attending = adminRsvpForm.querySelector('select[name="attending"]')?.value || 'no';
-    const adultsRaw = adminRsvpForm.querySelector('input[name="guestCount"]')?.value || '0';
-    const childrenRaw = adminRsvpForm.querySelector('input[name="childrenCount"]')?.value || '0';
-    const guestNamesRaw = adminRsvpForm.querySelector('textarea[name="guestNames"]')?.value || '';
-    const childrenAgesRaw = adminRsvpForm.querySelector('textarea[name="childrenAges"]')?.value || '';
+    const attending = adminEntryForm.querySelector('select[name="attending"]')?.value || 'no';
+    const adultsRaw = adminEntryForm.querySelector('input[name="guestCount"]')?.value || '0';
+    const childrenRaw = adminEntryForm.querySelector('input[name="childrenCount"]')?.value || '0';
+    const accommodationInterest = (adminEntryForm.querySelector('select[name="accommodationInterest"]')?.value || '').toLowerCase();
+    const accommodationCountRaw = adminEntryForm.querySelector('input[name="accommodationCount"]')?.value?.trim() || '';
+    const donationRaw = adminEntryForm.querySelector('input[name="donationAmount"]')?.value?.trim() || '';
     const adults = Number.parseInt(adultsRaw, 10);
     const children = Number.parseInt(childrenRaw, 10);
 
@@ -817,28 +798,57 @@ async function handleAdminRsvpEditSubmit(event, adminRsvpForm, state, elements) 
         return;
     }
 
-    const restore = setBusy(submitButton, 'Saving RSVP...');
+    if (donationRaw !== '') {
+        const parsedDonation = Number.parseFloat(donationRaw);
+
+        if (Number.isNaN(parsedDonation) || parsedDonation < 0) {
+            setBanner(elements, 'Recorded gift must be blank or a valid non-negative amount.', 'error');
+            return;
+        }
+    }
+
+    if (accommodationCountRaw !== '') {
+        const accommodationCount = Number.parseInt(accommodationCountRaw, 10);
+        if (!Number.isInteger(accommodationCount) || accommodationCount < 0 || accommodationCount > 20) {
+            setBanner(elements, 'Accommodation count must be blank or a whole number from 0 to 20.', 'error');
+            return;
+        }
+    }
+
+    const needsAccommodationCount = attending === 'yes' && (accommodationInterest === 'yes' || accommodationInterest === 'maybe');
+    if (needsAccommodationCount && accommodationCountRaw === '') {
+        setBanner(elements, 'Accommodation count is required when accommodation interest is Yes or Maybe.', 'error');
+        return;
+    }
+
+    const confirmed = window.confirm(`Save all RSVP changes for ${household}?`);
+    if (!confirmed) {
+        return;
+    }
+
+    const restore = setBusy(submitButton, 'Saving changes...');
     const isAttending = attending === 'yes';
     const payload = {
         attending,
+        phone: (adminEntryForm.querySelector('input[name="phone"]')?.value || '').trim(),
         guestCount: isAttending ? String(adults) : '0',
         childrenCount: isAttending ? String(children) : '0',
-        guestNames: isAttending ? guestNamesRaw.trim() : '',
-        childrenAges: isAttending ? childrenAgesRaw.trim() : '',
+        guestNames: isAttending ? (adminEntryForm.querySelector('textarea[name="guestNames"]')?.value || '').trim() : '',
+        childrenAges: isAttending ? (adminEntryForm.querySelector('textarea[name="childrenAges"]')?.value || '').trim() : '',
+        dietary: isAttending ? (adminEntryForm.querySelector('textarea[name="dietary"]')?.value || '').trim() : '',
+        accessibility: isAttending ? (adminEntryForm.querySelector('textarea[name="accessibility"]')?.value || '').trim() : '',
+        accommodationInterest: isAttending ? accommodationInterest : '',
+        accommodationCount: isAttending && (accommodationInterest === 'yes' || accommodationInterest === 'maybe') ? accommodationCountRaw : '',
+        songRequest: isAttending ? (adminEntryForm.querySelector('textarea[name="songRequest"]')?.value || '').trim() : '',
+        message: (adminEntryForm.querySelector('textarea[name="message"]')?.value || '').trim(),
+        donationAmount: donationRaw === '' ? null : Number.parseFloat(Number.parseFloat(donationRaw).toFixed(2)),
+        donationUpdatedAt: serverTimestamp(),
         updatedAt: serverTimestamp()
     };
 
-    if (!isAttending) {
-        payload.dietary = '';
-        payload.accessibility = '';
-        payload.accommodationInterest = '';
-        payload.accommodationCount = '';
-        payload.songRequest = '';
-    }
-
     try {
         await updateDoc(doc(state.db, 'rsvps', rsvpId), payload);
-        setBanner(elements, `Saved RSVP details for ${household}.`, 'success');
+        setBanner(elements, `Saved response changes for ${household}.`, 'success');
     } catch (error) {
         setBanner(elements, friendlyErrorMessage(error, 'admin-action'), 'error');
     } finally {
@@ -1279,6 +1289,7 @@ function renderAdminEntries(entries, state, elements) {
     const displayEntries = getDisplayAdminEntries(entries);
 
     elements.adminRsvpCount.textContent = String(displayEntries.length);
+    updateAdminEditModeButton(state, elements);
     renderAdminAccess(state, elements);
     renderAdminSummary(displayEntries, elements);
     elements.adminList.innerHTML = displayEntries.map((entry) => buildAdminCard(entry, state)).join('');
@@ -1291,6 +1302,17 @@ function renderAdminEntries(entries, state, elements) {
     }
 
     applyAdminView(state.adminViewMode, elements);
+}
+
+function updateAdminEditModeButton(state, elements) {
+    if (!elements.toggleAdminEditModeButton) {
+        return;
+    }
+
+    const isEnabled = state.adminEditMode === true;
+    elements.toggleAdminEditModeButton.textContent = isEnabled ? 'Disable Edit Mode' : 'Enable Edit Mode';
+    elements.toggleAdminEditModeButton.classList.toggle('inline-button', isEnabled);
+    elements.toggleAdminEditModeButton.classList.toggle('ghost-button', !isEnabled);
 }
 
 function getDisplayAdminEntries(entries) {
@@ -1673,6 +1695,7 @@ function buildAdminCard(entry, state) {
     const guestCount = entry.guestCount && entry.guestCount !== '0' ? entry.guestCount : '--';
     const childrenCount = entry.childrenCount && entry.childrenCount !== '0' ? entry.childrenCount : '0';
     const status = entry.attending === 'yes' ? 'Attending' : 'Declines';
+    const isEditMode = state.adminEditMode === true && !entry.isFixedResponse;
     const submittedLabel = entry.isFixedResponse
         ? 'Included'
         : entry.updatedAt
@@ -1689,21 +1712,22 @@ function buildAdminCard(entry, state) {
         `
         : `
             <div class="admin-entry-toolbar">
-                <p class="admin-entry-toolbar-copy">Edit party counts and guest names here, record the amount received in the bank account, remove this RSVP if it was entered in error, or revoke the guest's website access from the same row.</p>
+                <p class="admin-entry-toolbar-copy">${isEditMode ? 'Edit mode is active. Update any response fields below, then confirm with Save Changes.' : 'Enable edit mode to safely update response fields. Delete this RSVP if it was entered in error, or revoke website access from the same row.'}</p>
                 <div class="admin-entry-actions">
-                    ${buildAdminRsvpEditForm(entry)}
-                    ${buildDonationForm(entry)}
                     <button type="button" class="danger-button" data-delete-rsvp="${escapeHtml(entry.id)}" data-household="${escapeHtml(household)}">Delete RSVP Only</button>
                     ${buildUserAccessAction(entry, state)}
                 </div>
             </div>
         `;
+    const cardBodyMarkup = isEditMode
+        ? buildAdminEditableCardBody(entry, household)
+        : buildAdminReadOnlyCardBody(entry, guestCount, childrenCount);
 
     return `
         <article class="admin-entry">
             <div class="admin-entry-header">
                 <div>
-                    <span class="detail-badge">${escapeHtml(status)}</span>
+                    <span class="detail-badge">${escapeHtml(isEditMode ? 'Editing' : status)}</span>
                     <h4>${escapeHtml(household)}</h4>
                 </div>
                 <div class="admin-entry-meta">
@@ -1713,21 +1737,7 @@ function buildAdminCard(entry, state) {
             </div>
 
             ${toolbarMarkup}
-
-            <dl class="admin-entry-grid">
-                ${detailPair('Phone', entry.phone)}
-                ${detailPair('Adults', guestCount)}
-                ${detailPair('Children', childrenCount)}
-                ${detailPair('Recorded Gift', formatDonationValue(entry.donationAmount))}
-                ${detailPair('Additional Guests', entry.guestNames)}
-                ${detailPair('Children\'s Ages', entry.childrenAges)}
-                ${detailPair('Dietary Needs', entry.dietary)}
-                ${detailPair('Accessibility', entry.accessibility)}
-                ${detailPair('Accommodation Interest', entry.accommodationInterest)}
-                ${detailPair('Accommodation Count', entry.accommodationCount)}
-                ${detailPair('Song Request', entry.songRequest)}
-                ${detailPair('Message', entry.message)}
-            </dl>
+            ${cardBodyMarkup}
         </article>
     `;
 }
@@ -1737,7 +1747,7 @@ function buildAdminTableRow(entry, state) {
     const status = entry.attending === 'yes' ? 'Attending' : 'Declines';
     const partySize = formatPartySummary(entry);
     const accommodation = formatAccommodationSummary(entry);
-    const giftCell = entry.isFixedResponse ? '<span class="status-pill">Host</span>' : buildCompactDonationForm(entry);
+    const giftCell = entry.isFixedResponse ? '<span class="status-pill">Host</span>' : escapeHtml(formatDonationValue(entry.donationAmount));
     const actionCell = entry.isFixedResponse
         ? '<span class="status-pill">Fixed Entry</span>'
         : `
@@ -1761,6 +1771,62 @@ function buildAdminTableRow(entry, state) {
             <td>${escapeHtml(whenValue)}</td>
             <td>${actionCell}</td>
         </tr>
+    `;
+}
+
+function buildAdminReadOnlyCardBody(entry, guestCount, childrenCount) {
+    return `
+        <dl class="admin-entry-grid">
+            ${detailPair('Phone', entry.phone)}
+            ${detailPair('Adults', guestCount)}
+            ${detailPair('Children', childrenCount)}
+            ${detailPair('Recorded Gift', formatDonationValue(entry.donationAmount))}
+            ${detailPair('Additional Guests', entry.guestNames)}
+            ${detailPair('Children\'s Ages', entry.childrenAges)}
+            ${detailPair('Dietary Needs', entry.dietary)}
+            ${detailPair('Accessibility', entry.accessibility)}
+            ${detailPair('Accommodation Interest', entry.accommodationInterest)}
+            ${detailPair('Accommodation Count', entry.accommodationCount)}
+            ${detailPair('Song Request', entry.songRequest)}
+            ${detailPair('Message', entry.message)}
+        </dl>
+    `;
+}
+
+function buildAdminEditableCardBody(entry, household) {
+    const attending = entry.attending === 'yes' ? 'yes' : 'no';
+    const accommodationInterest = (entry.accommodationInterest || '').toLowerCase();
+    const donationValue = getDonationNumber(entry.donationAmount);
+
+    return `
+        <form class="admin-entry-edit-form" data-admin-entry-form="${escapeHtml(entry.id)}" data-household="${escapeHtml(household)}">
+            <dl class="admin-entry-grid">
+                ${detailSelectField('RSVP Status', 'attending', attending, [
+        { value: 'yes', label: 'Attending' },
+        { value: 'no', label: 'Declines' }
+    ])}
+                ${detailInputField('Phone', 'phone', entry.phone)}
+                ${detailInputField('Adults', 'guestCount', String(getAdultCount(entry)), 'number', { min: '0', max: '20', step: '1', inputmode: 'numeric' })}
+                ${detailInputField('Children', 'childrenCount', String(getChildCount(entry)), 'number', { min: '0', max: '20', step: '1', inputmode: 'numeric' })}
+                ${detailInputField('Recorded Gift', 'donationAmount', donationValue === null ? '' : donationValue.toFixed(2), 'number', { min: '0', step: '0.01', inputmode: 'decimal', placeholder: '0.00' })}
+                ${detailTextareaField('Additional Guests', 'guestNames', entry.guestNames)}
+                ${detailTextareaField('Children\'s Ages', 'childrenAges', entry.childrenAges)}
+                ${detailTextareaField('Dietary Needs', 'dietary', entry.dietary)}
+                ${detailTextareaField('Accessibility', 'accessibility', entry.accessibility)}
+                ${detailSelectField('Accommodation Interest', 'accommodationInterest', accommodationInterest, [
+        { value: '', label: '--' },
+        { value: 'yes', label: 'Yes' },
+        { value: 'maybe', label: 'Maybe' },
+        { value: 'no', label: 'No' }
+    ])}
+                ${detailInputField('Accommodation Count', 'accommodationCount', entry.accommodationCount, 'number', { min: '0', max: '20', step: '1', inputmode: 'numeric' })}
+                ${detailTextareaField('Song Request', 'songRequest', entry.songRequest)}
+                ${detailTextareaField('Message', 'message', entry.message)}
+            </dl>
+            <div class="admin-entry-save-row">
+                <button type="submit" class="inline-button">Save Changes</button>
+            </div>
+        </form>
     `;
 }
 
@@ -1792,71 +1858,6 @@ function buildUserAccessAction(entry, state, options = {}) {
     return `<button type="button" class="danger-button" data-remove-user="${escapeHtml(uid)}" data-email="${escapeHtml(email)}" data-name="${escapeHtml(name)}">${isCompact ? 'Block' : 'Remove Access'}</button>`;
 }
 
-function buildDonationForm(entry) {
-    const household = buildHouseholdName(entry);
-    const donationValue = getDonationNumber(entry.donationAmount);
-    const inputValue = donationValue === null ? '' : donationValue.toFixed(2);
-
-    return `
-        <form class="admin-donation-form" data-donation-form="${escapeHtml(entry.id)}" data-household="${escapeHtml(household)}">
-            <div>
-                <label for="donation-${escapeHtml(entry.id)}">Recorded gift (GBP)</label>
-                <input id="donation-${escapeHtml(entry.id)}" type="number" name="donationAmount" min="0" step="0.01" inputmode="decimal" placeholder="0.00" value="${escapeHtml(inputValue)}">
-            </div>
-            <button type="submit" class="inline-button">Save</button>
-        </form>
-    `;
-}
-
-function buildAdminRsvpEditForm(entry) {
-    const household = buildHouseholdName(entry);
-    const attending = entry.attending === 'yes' ? 'yes' : 'no';
-    const guestCount = Math.max(getAdultCount(entry), attending === 'yes' ? 1 : 0);
-    const childrenCount = getChildCount(entry);
-
-    return `
-        <form class="admin-rsvp-form" data-admin-rsvp-form="${escapeHtml(entry.id)}" data-household="${escapeHtml(household)}">
-            <div>
-                <label for="attending-${escapeHtml(entry.id)}">Attending</label>
-                <select id="attending-${escapeHtml(entry.id)}" name="attending">
-                    <option value="yes" ${attending === 'yes' ? 'selected' : ''}>Yes</option>
-                    <option value="no" ${attending === 'no' ? 'selected' : ''}>No</option>
-                </select>
-            </div>
-            <div>
-                <label for="adults-${escapeHtml(entry.id)}">Adults</label>
-                <input id="adults-${escapeHtml(entry.id)}" type="number" name="guestCount" min="0" max="20" step="1" inputmode="numeric" value="${escapeHtml(String(guestCount))}">
-            </div>
-            <div>
-                <label for="children-${escapeHtml(entry.id)}">Children</label>
-                <input id="children-${escapeHtml(entry.id)}" type="number" name="childrenCount" min="0" max="20" step="1" inputmode="numeric" value="${escapeHtml(String(childrenCount))}">
-            </div>
-            <div class="admin-rsvp-form-wide">
-                <label for="guest-names-${escapeHtml(entry.id)}">Additional Guests</label>
-                <textarea id="guest-names-${escapeHtml(entry.id)}" name="guestNames" rows="2" placeholder="Names including children">${escapeHtml(entry.guestNames || '')}</textarea>
-            </div>
-            <div class="admin-rsvp-form-wide">
-                <label for="children-ages-${escapeHtml(entry.id)}">Children's Ages</label>
-                <textarea id="children-ages-${escapeHtml(entry.id)}" name="childrenAges" rows="2" placeholder="Optional ages">${escapeHtml(entry.childrenAges || '')}</textarea>
-            </div>
-            <button type="submit" class="inline-button">Save RSVP</button>
-        </form>
-    `;
-}
-
-function buildCompactDonationForm(entry) {
-    const household = buildHouseholdName(entry);
-    const donationValue = getDonationNumber(entry.donationAmount);
-    const inputValue = donationValue === null ? '' : donationValue.toFixed(2);
-
-    return `
-        <form class="admin-donation-form admin-donation-form-compact" data-donation-form="${escapeHtml(entry.id)}" data-household="${escapeHtml(household)}">
-            <input aria-label="Recorded gift for ${escapeHtml(household)}" id="donation-compact-${escapeHtml(entry.id)}" type="number" name="donationAmount" min="0" step="0.01" inputmode="decimal" placeholder="0.00" value="${escapeHtml(inputValue)}">
-            <button type="submit" class="inline-button">Save</button>
-        </form>
-    `;
-}
-
 function formatPartySummary(entry) {
     if (entry.attending !== 'yes') {
         return '--';
@@ -1880,6 +1881,48 @@ function detailPair(label, value) {
         <div class="detail-pair">
             <dt>${escapeHtml(label)}</dt>
             <dd>${rendered}</dd>
+        </div>
+    `;
+}
+
+function detailInputField(label, name, value, type = 'text', attributes = {}) {
+    const attributeMarkup = Object.entries(attributes)
+        .map(([key, entryValue]) => ` ${escapeHtml(key)}="${escapeHtml(String(entryValue))}"`)
+        .join('');
+
+    return `
+        <div class="detail-pair detail-pair-editable">
+            <dt>${escapeHtml(label)}</dt>
+            <dd>
+                <input class="admin-edit-input" type="${escapeHtml(type)}" name="${escapeHtml(name)}" value="${escapeHtml(value || '')}"${attributeMarkup}>
+            </dd>
+        </div>
+    `;
+}
+
+function detailTextareaField(label, name, value) {
+    return `
+        <div class="detail-pair detail-pair-editable">
+            <dt>${escapeHtml(label)}</dt>
+            <dd>
+                <textarea class="admin-edit-textarea" name="${escapeHtml(name)}" rows="3">${escapeHtml(value || '')}</textarea>
+            </dd>
+        </div>
+    `;
+}
+
+function detailSelectField(label, name, value, options) {
+    const optionMarkup = options.map((option) => {
+        const isSelected = String(option.value) === String(value);
+        return `<option value="${escapeHtml(String(option.value))}"${isSelected ? ' selected' : ''}>${escapeHtml(String(option.label))}</option>`;
+    }).join('');
+
+    return `
+        <div class="detail-pair detail-pair-editable">
+            <dt>${escapeHtml(label)}</dt>
+            <dd>
+                <select class="admin-edit-select" name="${escapeHtml(name)}">${optionMarkup}</select>
+            </dd>
         </div>
     `;
 }

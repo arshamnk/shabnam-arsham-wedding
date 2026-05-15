@@ -1091,79 +1091,43 @@ h1, h2, h3, h4, h5, h6 {
     align-items: flex-end;
 }
 
-.admin-donation-form {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    align-items: flex-end;
+.admin-entry-edit-form {
+    display: grid;
+    gap: 16px;
 }
 
-.admin-rsvp-form {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    align-items: flex-end;
+.detail-pair-editable dd {
+    margin: 0;
 }
 
-.admin-donation-form label {
-    display: block;
-    margin-bottom: 6px;
-    color: var(--text-light);
-    font-size: 0.76rem;
-    font-weight: 600;
-    letter-spacing: 1.2px;
-    text-transform: uppercase;
-}
-
-.admin-rsvp-form label {
-    display: block;
-    margin-bottom: 6px;
-    color: var(--text-light);
-    font-size: 0.76rem;
-    font-weight: 600;
-    letter-spacing: 1.2px;
-    text-transform: uppercase;
-}
-
-.admin-donation-form input {
-    min-width: 150px;
-    padding: 12px 14px;
+.admin-edit-input,
+.admin-edit-select,
+.admin-edit-textarea {
+    width: 100%;
+    padding: 10px 12px;
     border: 1px solid #ddd;
     border-radius: 3px;
     font-family: 'Montserrat', sans-serif;
-    font-size: 0.95rem;
+    font-size: 0.93rem;
+    color: var(--text-dark);
+    background-color: #fff;
 }
 
-.admin-rsvp-form input,
-.admin-rsvp-form select,
-.admin-rsvp-form textarea {
-    min-width: 120px;
-    padding: 12px 14px;
-    border: 1px solid #ddd;
-    border-radius: 3px;
-    font-family: 'Montserrat', sans-serif;
-    font-size: 0.95rem;
-}
-
-.admin-rsvp-form textarea {
-    min-width: 230px;
+.admin-edit-textarea {
     resize: vertical;
+    min-height: 88px;
 }
 
-.admin-rsvp-form-wide {
-    flex: 1 1 240px;
-}
-
-.admin-donation-form input:focus {
+.admin-edit-input:focus,
+.admin-edit-select:focus,
+.admin-edit-textarea:focus {
     outline: none;
     border-color: var(--secondary-color);
 }
 
-.admin-rsvp-form input:focus,
-.admin-rsvp-form select:focus,
-.admin-rsvp-form textarea:focus {
-    outline: none;
-    border-color: var(--secondary-color);
+.admin-entry-save-row {
+    display: flex;
+    justify-content: flex-end;
 }
 
 .inline-button,
@@ -1304,28 +1268,6 @@ h1, h2, h3, h4, h5, h6 {
     color: var(--text-light);
     font-size: 0.8rem;
     line-height: 1.4;
-}
-
-.admin-table .admin-donation-form {
-    min-width: 0;
-}
-
-.admin-table .admin-donation-form input {
-    min-width: 0;
-}
-
-.admin-donation-form-compact {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.admin-donation-form-compact input {
-    width: 88px;
-}
-
-.admin-donation-form-compact label {
-    display: none;
 }
 
 .admin-table-actions {

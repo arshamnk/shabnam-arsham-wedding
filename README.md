@@ -7,7 +7,7 @@ This is a static wedding website for GitHub Pages with:
 - a shared RSVP form stored in Firestore
 - an admin dashboard for reviewing all RSVP submissions
 - admin-only donation tracking and RSVP deletion controls
-- admin-side RSVP editing for existing guest submissions
+- admin-side RSVP editing with an explicit edit-mode toggle and per-response save confirmation
 - website-based promotion of verified users to admin access
 - website-based removal of verified users from site access
 
@@ -59,7 +59,7 @@ The rules do four things:
 - verified users write a lightweight profile document when they log in
 - normal guests can only read their own RSVP
 - admin users can read every RSVP
-- admin users can edit RSVP fields, update the recorded donation amount, and delete an RSVP
+- admin users can toggle edit mode, edit RSVP fields on each response card, confirm and save changes, and delete an RSVP
 - admin users can grant admin access and revoke website access for verified users
 
 ## Admin Setup
