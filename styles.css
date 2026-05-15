@@ -1098,7 +1098,24 @@ h1, h2, h3, h4, h5, h6 {
     align-items: flex-end;
 }
 
+.admin-rsvp-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: flex-end;
+}
+
 .admin-donation-form label {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--text-light);
+    font-size: 0.76rem;
+    font-weight: 600;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+}
+
+.admin-rsvp-form label {
     display: block;
     margin-bottom: 6px;
     color: var(--text-light);
@@ -1117,7 +1134,34 @@ h1, h2, h3, h4, h5, h6 {
     font-size: 0.95rem;
 }
 
+.admin-rsvp-form input,
+.admin-rsvp-form select,
+.admin-rsvp-form textarea {
+    min-width: 120px;
+    padding: 12px 14px;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 0.95rem;
+}
+
+.admin-rsvp-form textarea {
+    min-width: 230px;
+    resize: vertical;
+}
+
+.admin-rsvp-form-wide {
+    flex: 1 1 240px;
+}
+
 .admin-donation-form input:focus {
+    outline: none;
+    border-color: var(--secondary-color);
+}
+
+.admin-rsvp-form input:focus,
+.admin-rsvp-form select:focus,
+.admin-rsvp-form textarea:focus {
     outline: none;
     border-color: var(--secondary-color);
 }

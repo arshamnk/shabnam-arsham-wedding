@@ -44,10 +44,26 @@ service cloud.firestore {
         && request.resource.data.email == request.auth.token.email;
     }
 
-    function isAdminDonationUpdate() {
+    function isAdminRsvpUpdate() {
       return isAdmin()
         && keepsIdentityStable()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'displayName',
+          'firstName',
+          'lastName',
+          'phone',
+          'attending',
+          'guestCount',
+          'childrenCount',
+          'guestNames',
+          'childrenAges',
+          'dietary',
+          'accessibility',
+          'accommodationInterest',
+          'accommodationCount',
+          'songRequest',
+          'message',
+          'updatedAt',
           'donationAmount',
           'donationUpdatedAt'
         ]);
@@ -89,7 +105,7 @@ service cloud.firestore {
       allow get: if isAdmin() || isCurrentUser(userId);
       allow list: if isAdmin();
       allow create: if isGuestRsvpWrite(userId);
-      allow update: if isAdminDonationUpdate();
+      allow update: if isAdminRsvpUpdate();
       allow delete: if isAdmin();
     }
   }

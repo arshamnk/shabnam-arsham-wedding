@@ -393,6 +393,13 @@ function bindProtectedInteractions(state, elements) {
     });
 
     elements.adminView.addEventListener('submit', (event) => {
+        const adminRsvpForm = event.target.closest('[data-admin-rsvp-form]');
+
+        if (adminRsvpForm) {
+            handleAdminRsvpEditSubmit(event, adminRsvpForm, state, elements);
+            return;
+        }
+
         const donationForm = event.target.closest('[data-donation-form]');
 
         if (!donationForm) {
@@ -763,6 +770,75 @@ async function handleAdminDonationSubmit(event, donationForm, state, elements) {
             donationUpdatedAt: serverTimestamp()
         });
         setBanner(elements, `Saved the recorded donation for ${household}.`, 'success');
+    } catch (error) {
+        setBanner(elements, friendlyErrorMessage(error, 'admin-action'), 'error');
+    } finally {
+        restore();
+    }
+}
+
+async function handleAdminRsvpEditSubmit(event, adminRsvpForm, state, elements) {
+    event.preventDefault();
+
+    if (!state.isAdmin) {
+        setBanner(elements, 'Admin access is required to update RSVP details.', 'error');
+        return;
+    }
+
+    const rsvpId = adminRsvpForm.dataset.adminRsvpForm;
+    const household = adminRsvpForm.dataset.household || 'this RSVP';
+    const submitButton = adminRsvpForm.querySelector('button[type="submit"]');
+
+    if (!submitButton) {
+        setBanner(elements, 'Could not find the RSVP save button for this row.', 'error');
+        return;
+    }
+
+    const attending = adminRsvpForm.querySelector('select[name="attending"]')?.value || 'no';
+    const adultsRaw = adminRsvpForm.querySelector('input[name="guestCount"]')?.value || '0';
+    const childrenRaw = adminRsvpForm.querySelector('input[name="childrenCount"]')?.value || '0';
+    const guestNamesRaw = adminRsvpForm.querySelector('textarea[name="guestNames"]')?.value || '';
+    const childrenAgesRaw = adminRsvpForm.querySelector('textarea[name="childrenAges"]')?.value || '';
+    const adults = Number.parseInt(adultsRaw, 10);
+    const children = Number.parseInt(childrenRaw, 10);
+
+    if (!Number.isInteger(adults) || adults < 0 || adults > 20) {
+        setBanner(elements, 'Adults must be a whole number from 0 to 20.', 'error');
+        return;
+    }
+
+    if (!Number.isInteger(children) || children < 0 || children > 20) {
+        setBanner(elements, 'Children must be a whole number from 0 to 20.', 'error');
+        return;
+    }
+
+    if (attending === 'yes' && adults < 1) {
+        setBanner(elements, 'Attending households must include at least 1 adult.', 'error');
+        return;
+    }
+
+    const restore = setBusy(submitButton, 'Saving RSVP...');
+    const isAttending = attending === 'yes';
+    const payload = {
+        attending,
+        guestCount: isAttending ? String(adults) : '0',
+        childrenCount: isAttending ? String(children) : '0',
+        guestNames: isAttending ? guestNamesRaw.trim() : '',
+        childrenAges: isAttending ? childrenAgesRaw.trim() : '',
+        updatedAt: serverTimestamp()
+    };
+
+    if (!isAttending) {
+        payload.dietary = '';
+        payload.accessibility = '';
+        payload.accommodationInterest = '';
+        payload.accommodationCount = '';
+        payload.songRequest = '';
+    }
+
+    try {
+        await updateDoc(doc(state.db, 'rsvps', rsvpId), payload);
+        setBanner(elements, `Saved RSVP details for ${household}.`, 'success');
     } catch (error) {
         setBanner(elements, friendlyErrorMessage(error, 'admin-action'), 'error');
     } finally {
@@ -1613,8 +1689,9 @@ function buildAdminCard(entry, state) {
         `
         : `
             <div class="admin-entry-toolbar">
-                <p class="admin-entry-toolbar-copy">Record the amount received in the bank account here, remove this RSVP if it was entered in error, or revoke the guest's website access directly from the same row.</p>
+                <p class="admin-entry-toolbar-copy">Edit party counts and guest names here, record the amount received in the bank account, remove this RSVP if it was entered in error, or revoke the guest's website access from the same row.</p>
                 <div class="admin-entry-actions">
+                    ${buildAdminRsvpEditForm(entry)}
                     ${buildDonationForm(entry)}
                     <button type="button" class="danger-button" data-delete-rsvp="${escapeHtml(entry.id)}" data-household="${escapeHtml(household)}">Delete RSVP Only</button>
                     ${buildUserAccessAction(entry, state)}
@@ -1727,6 +1804,42 @@ function buildDonationForm(entry) {
                 <input id="donation-${escapeHtml(entry.id)}" type="number" name="donationAmount" min="0" step="0.01" inputmode="decimal" placeholder="0.00" value="${escapeHtml(inputValue)}">
             </div>
             <button type="submit" class="inline-button">Save</button>
+        </form>
+    `;
+}
+
+function buildAdminRsvpEditForm(entry) {
+    const household = buildHouseholdName(entry);
+    const attending = entry.attending === 'yes' ? 'yes' : 'no';
+    const guestCount = Math.max(getAdultCount(entry), attending === 'yes' ? 1 : 0);
+    const childrenCount = getChildCount(entry);
+
+    return `
+        <form class="admin-rsvp-form" data-admin-rsvp-form="${escapeHtml(entry.id)}" data-household="${escapeHtml(household)}">
+            <div>
+                <label for="attending-${escapeHtml(entry.id)}">Attending</label>
+                <select id="attending-${escapeHtml(entry.id)}" name="attending">
+                    <option value="yes" ${attending === 'yes' ? 'selected' : ''}>Yes</option>
+                    <option value="no" ${attending === 'no' ? 'selected' : ''}>No</option>
+                </select>
+            </div>
+            <div>
+                <label for="adults-${escapeHtml(entry.id)}">Adults</label>
+                <input id="adults-${escapeHtml(entry.id)}" type="number" name="guestCount" min="0" max="20" step="1" inputmode="numeric" value="${escapeHtml(String(guestCount))}">
+            </div>
+            <div>
+                <label for="children-${escapeHtml(entry.id)}">Children</label>
+                <input id="children-${escapeHtml(entry.id)}" type="number" name="childrenCount" min="0" max="20" step="1" inputmode="numeric" value="${escapeHtml(String(childrenCount))}">
+            </div>
+            <div class="admin-rsvp-form-wide">
+                <label for="guest-names-${escapeHtml(entry.id)}">Additional Guests</label>
+                <textarea id="guest-names-${escapeHtml(entry.id)}" name="guestNames" rows="2" placeholder="Names including children">${escapeHtml(entry.guestNames || '')}</textarea>
+            </div>
+            <div class="admin-rsvp-form-wide">
+                <label for="children-ages-${escapeHtml(entry.id)}">Children's Ages</label>
+                <textarea id="children-ages-${escapeHtml(entry.id)}" name="childrenAges" rows="2" placeholder="Optional ages">${escapeHtml(entry.childrenAges || '')}</textarea>
+            </div>
+            <button type="submit" class="inline-button">Save RSVP</button>
         </form>
     `;
 }
